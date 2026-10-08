@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
+use crate::backup::Backups;
 use crate::config::{Config, Profile};
 use crate::shortcut;
 use crate::state::{ForegroundInfo, ProfileStatus, SaveInfo, Shared, Status};
@@ -39,11 +40,15 @@ enum Decision {
     Skip(Reason),
 }
 
-pub fn spawn(app: AppHandle, shared: Arc<Shared>) {
+pub fn spawn(app: AppHandle, shared: Arc<Shared>, backups: Arc<Backups>) {
     thread::spawn(move || {
         let mut scheduler = Scheduler {
+            backups,
             self_elevated: win32::is_elevated(None),
-            ..Default::default()
+            timers: HashMap::new(),
+            due_since: None,
+            reasons: HashMap::new(),
+            dirty_seen: HashSet::new(),
         };
         loop {
             thread::sleep(TICK);
@@ -54,8 +59,8 @@ pub fn spawn(app: AppHandle, shared: Arc<Shared>) {
     });
 }
 
-#[derive(Default)]
 struct Scheduler {
+    backups: Arc<Backups>,
     /// Momento del último guardado (o del último reinicio) de cada perfil.
     timers: HashMap<String, Instant>,
     /// Desde cuándo espera el guardado pendiente del programa activo.
@@ -93,11 +98,15 @@ impl Scheduler {
                 match self.decide(config, profile, window, due_since.elapsed()) {
                     Decision::Save => {
                         if save(window, profile) {
+                            let dirty = self.dirty_seen.contains(&profile.id) && profile.is_dirty(&window.title);
+                            self.backups.expect_save(profile, dirty);
                             self.reset(profile);
                             let info = SaveInfo {
                                 time: chrono::Local::now().format("%H:%M:%S").to_string(),
                                 app: profile.name.clone(),
                                 profile_id: profile.id.clone(),
+                                verified: None,
+                                file: None,
                             };
                             shared.runtime().last_save = Some(info.clone());
                             let _ = app.emit("saved", info);

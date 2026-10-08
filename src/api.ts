@@ -12,6 +12,16 @@ export interface Profile {
   shortcut: string;
   untitled_markers: string[];
   dirty_markers: string[];
+  extensions: string[];
+  watch_folders: string[];
+}
+
+export interface BackupConfig {
+  enabled: boolean;
+  folder: string;
+  keep_per_file: number;
+  min_minutes_between: number;
+  max_total_mb: number;
 }
 
 export interface SmartSave {
@@ -27,12 +37,14 @@ export interface Config {
   enabled: boolean;
   profiles: Profile[];
   smart: SmartSave;
+  backups: BackupConfig;
 }
 
 export interface Preset {
   name: string;
   exe: string;
   shortcut: string;
+  extensions: string[];
 }
 
 export interface OpenApp {
@@ -44,6 +56,31 @@ export interface SaveInfo {
   time: string;
   app: string;
   profile_id: string;
+  verified: boolean | null;
+  file: string | null;
+}
+
+export interface SaveCheck {
+  profile_id: string;
+  app: string;
+  file: string | null;
+}
+
+export interface BackupEntry {
+  id: string;
+  original: string;
+  path: string;
+  created_ms: number;
+  size: number;
+  app: string;
+}
+
+export interface BackupGroup {
+  original: string;
+  name: string;
+  app: string;
+  total_size: number;
+  entries: BackupEntry[];
 }
 
 export type Reason = "busy" | "input_held" | "dialog" | "untitled" | "elevated" | "no_changes";
@@ -67,14 +104,27 @@ export const api = {
   setConfig: (config: Config) => invoke<Config>("set_config", { config }),
   getPresets: () => invoke<Preset[]>("get_presets"),
   listOpenApps: () => invoke<OpenApp[]>("list_open_apps"),
+  listBackups: () => invoke<BackupGroup[]>("list_backups"),
+  restoreBackup: (id: string) => invoke<string>("restore_backup", { id }),
+  revealBackup: (id: string) => invoke<void>("reveal_backup", { id }),
+  deleteBackup: (id: string) => invoke<void>("delete_backup", { id }),
+  deleteBackupGroup: (original: string) => invoke<void>("delete_backup_group", { original }),
+  backupRoot: () => invoke<string>("backup_root"),
+  openBackupRoot: () => invoke<void>("open_backup_root"),
 };
+
+export const onSaveVerified = (cb: (check: SaveCheck) => void) => listen<SaveCheck>("save_verified", (e) => cb(e.payload));
+export const onSaveUnverified = (cb: (check: SaveCheck) => void) =>
+  listen<SaveCheck>("save_unverified", (e) => cb(e.payload));
+export const onBackupCreated = (cb: (entry: BackupEntry) => void) =>
+  listen<BackupEntry>("backup_created", (e) => cb(e.payload));
 
 export function onStatus(callback: (status: Status) => void) {
   return listen<Status>("status", (event) => callback(event.payload));
 }
 
 /** Perfil nuevo; los campos omitidos los completa el backend con sus valores por defecto. */
-export function newProfile(name: string, exe: string, shortcut = "Ctrl+S"): Profile {
+export function newProfile(name: string, exe: string, shortcut = "Ctrl+S", extensions: string[] = []): Profile {
   return {
     id: crypto.randomUUID(),
     name,
@@ -82,5 +132,7 @@ export function newProfile(name: string, exe: string, shortcut = "Ctrl+S"): Prof
     enabled: true,
     interval_minutes: 5,
     shortcut,
-  } as Profile;
+    extensions,
+    watch_folders: [],
+  } as unknown as Profile;
 }

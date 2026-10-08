@@ -1,3 +1,5 @@
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+
 import type { Profile } from "../api";
 import { formatCountdown, t } from "../i18n";
 import { store } from "../store";
@@ -18,6 +20,35 @@ function textInput(value: string, onChange: (value: string) => void) {
   const input = h("input", { class: "input", value, style: "width:14rem" });
   input.addEventListener("change", () => onChange(input.value));
   return input;
+}
+
+/** Lista de carpetas con botones para añadir y quitar. */
+function foldersEditor(profile: Profile) {
+  const add = async () => {
+    const folder = await openDialog({ directory: true, multiple: false, title: t("programs.folders.add") });
+    if (typeof folder === "string") updateProfile(profile.id, (p) => p.watch_folders.push(folder));
+  };
+  return h(
+    "div",
+    { class: "stack", style: "gap:.25rem" },
+    profile.watch_folders.length
+      ? profile.watch_folders.map((folder) =>
+          h(
+            "div",
+            { class: "row" },
+            icon("folder", 16),
+            h("span", { class: "list-item-main truncate small", title: folder }, folder),
+            button(null, () => updateProfile(profile.id, (p) => (p.watch_folders = p.watch_folders.filter((f) => f !== folder))), {
+              variant: "ghost",
+              icon: "x",
+              small: true,
+              title: t("programs.remove"),
+            }),
+          ),
+        )
+      : h("div", { class: "small faint" }, t("programs.folders.empty")),
+    h("div", null, button(t("programs.folders.add"), add, { small: true, icon: "plus" })),
+  );
 }
 
 /** Lista editable como texto separado por comas. */
@@ -100,6 +131,18 @@ export const programsView: View = {
             t("programs.shortcut"),
             t("programs.shortcut.hint"),
             shortcutInput(profile.shortcut, (v) => updateProfile(profile.id, (p) => (p.shortcut = v))),
+          ),
+          h("h3", { class: "card-title", style: "margin:1.25rem 0 .25rem" }, t("programs.backups")),
+          field(
+            t("programs.extensions"),
+            t("programs.extensions.hint"),
+            listInput(profile.extensions, (v) => updateProfile(profile.id, (p) => (p.extensions = v))),
+          ),
+          h(
+            "div",
+            { class: "field column" },
+            h("div", { class: "field-label" }, h("span", null, t("programs.folders")), h("span", null, t("programs.folders.hint"))),
+            foldersEditor(profile),
           ),
           h("h3", { class: "card-title", style: "margin:1.25rem 0 .25rem" }, t("programs.advanced")),
           field(

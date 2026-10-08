@@ -28,6 +28,10 @@ pub struct SaveInfo {
     /// Nombre del programa.
     pub app: String,
     pub profile_id: String,
+    /// `Some(true)` si se detectó el archivo escrito; `Some(false)` si no apareció.
+    pub verified: Option<bool>,
+    /// Nombre del archivo guardado, si se verificó.
+    pub file: Option<String>,
 }
 
 /// Instantánea que se envía a la interfaz en cada ciclo.

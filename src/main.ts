@@ -1,15 +1,17 @@
 import { getVersion } from "@tauri-apps/api/app";
 
+import { onSaveUnverified } from "./api";
 import { t } from "./i18n";
 import { store } from "./store";
-import { h } from "./ui/dom";
+import { h, toast } from "./ui/dom";
 import { icon } from "./ui/icons";
+import { backupsView } from "./views/backups";
 import { homeView } from "./views/home";
 import { programsView } from "./views/programs";
 import { settingsView } from "./views/settings";
 import type { View } from "./views/view";
 
-const views: View[] = [homeView, programsView, settingsView];
+const views: View[] = [homeView, programsView, backupsView, settingsView];
 
 const nav = document.getElementById("nav")!;
 const viewRoot = document.getElementById("view")!;
@@ -57,6 +59,8 @@ async function main() {
   store.onConfig(renderBrandStatus);
   renderBrandStatus();
   navigate("home");
+  document.addEventListener("navigate", (e) => navigate((e as CustomEvent<string>).detail));
+  await onSaveUnverified((check) => toast(t("backups.unverified", { app: check.app }), "error"));
   sidebarFooter.textContent = `v${await getVersion()} · MIT`;
 }
 

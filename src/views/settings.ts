@@ -1,7 +1,8 @@
 import { getVersion } from "@tauri-apps/api/app";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
-import type { Config } from "../api";
+import { api, Config } from "../api";
 import logoUrl from "../assets/DCN.svg";
 import { t } from "../i18n";
 import { store } from "../store";
@@ -27,7 +28,7 @@ export const settingsView: View = {
     root.append(h("div", { class: "view-inner" }, viewHeader(t("settings.title"), t("settings.subtitle")), content));
 
     // Se redibuja al cambiar la configuración (ej. desde la bandeja).
-    const render = () => content.replaceChildren(smartCard(store.config), aboutCard());
+    const render = () => content.replaceChildren(smartCard(store.config), backupsCard(store.config), aboutCard());
     render();
     return store.onConfig(render);
   },
@@ -72,6 +73,51 @@ function smartCard(config: Config) {
       t("settings.smart.dialogs"),
       t("settings.smart.dialogs.hint"),
       switchEl(smart.skip_dialogs, (v) => set((c) => (c.smart.skip_dialogs = v))),
+    ),
+  );
+}
+
+function backupsCard(config: Config) {
+  const backups = config.backups;
+  const folder = h("span", { class: "small muted truncate", style: "max-width:18rem" });
+  api.backupRoot().then((path) => {
+    folder.textContent = path;
+    folder.title = path;
+  });
+  const change = async () => {
+    const picked = await openDialog({ directory: true, multiple: false, title: t("settings.backups.folder") });
+    if (typeof picked === "string") set((c) => (c.backups.folder = picked));
+  };
+  return card(
+    t("settings.backups"),
+    field(
+      t("settings.backups.enabled"),
+      t("settings.backups.enabled.hint"),
+      switchEl(backups.enabled, (v) => set((c) => (c.backups.enabled = v))),
+    ),
+    field(
+      t("settings.backups.folder"),
+      null,
+      folder,
+      button(t("settings.backups.change"), change, { small: true, icon: "folder" }),
+      backups.folder ? button(t("settings.backups.reset"), () => set((c) => (c.backups.folder = "")), { small: true, variant: "ghost" }) : null,
+    ),
+    field(
+      t("settings.backups.keep"),
+      t("settings.backups.keep.hint"),
+      numberInput(backups.keep_per_file, 1, 500, (v) => set((c) => (c.backups.keep_per_file = v))),
+    ),
+    field(
+      t("settings.backups.gap"),
+      t("settings.backups.gap.hint"),
+      numberInput(backups.min_minutes_between, 0, 240, (v) => set((c) => (c.backups.min_minutes_between = v))),
+      h("span", { class: "muted" }, t("common.min")),
+    ),
+    field(
+      t("settings.backups.max"),
+      t("settings.backups.max.hint"),
+      numberInput(backups.max_total_mb, 50, 1_000_000, (v) => set((c) => (c.backups.max_total_mb = v))),
+      h("span", { class: "muted" }, t("common.mb")),
     ),
   );
 }

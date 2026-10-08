@@ -21,6 +21,7 @@ pub struct Config {
     /// Un perfil por programa vigilado.
     pub profiles: Vec<Profile>,
     pub smart: SmartSave,
+    pub backups: BackupConfig,
 
     // Campos de la v1.0 (lista global de procesos); solo se leen para migrar.
     #[serde(skip_serializing)]
@@ -46,6 +47,47 @@ pub struct Profile {
     pub untitled_markers: Vec<String>,
     /// Textos del título que indican cambios sin guardar (ej. "*").
     pub dirty_markers: Vec<String>,
+    /// Extensiones de los archivos del programa, sin punto (ej. "blend").
+    pub extensions: Vec<String>,
+    /// Carpetas de proyecto donde se vigilan los archivos para respaldarlos.
+    pub watch_folders: Vec<String>,
+}
+
+/// Copias de seguridad con historial.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BackupConfig {
+    pub enabled: bool,
+    /// Carpeta de respaldos; vacía = carpeta predeterminada de la app.
+    pub folder: String,
+    /// Versiones que se conservan de cada archivo.
+    pub keep_per_file: u32,
+    /// Minutos mínimos entre dos copias del mismo archivo.
+    pub min_minutes_between: u32,
+    /// Espacio máximo total; se borran las copias más antiguas al superarlo.
+    pub max_total_mb: u64,
+}
+
+impl Default for BackupConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            folder: String::new(),
+            keep_per_file: 20,
+            min_minutes_between: 5,
+            max_total_mb: 2048,
+        }
+    }
+}
+
+impl BackupConfig {
+    fn normalized(mut self) -> Self {
+        self.folder = self.folder.trim().to_string();
+        self.keep_per_file = self.keep_per_file.clamp(1, 500);
+        self.min_minutes_between = self.min_minutes_between.min(240);
+        self.max_total_mb = self.max_total_mb.clamp(50, 1_000_000);
+        self
+    }
 }
 
 /// Reglas para no interrumpir al usuario al guardar.
@@ -98,15 +140,21 @@ impl Default for Profile {
             shortcut: DEFAULT_SHORTCUT.into(),
             untitled_markers: DEFAULT_UNTITLED_MARKERS.map(String::from).to_vec(),
             dirty_markers: DEFAULT_DIRTY_MARKERS.map(String::from).to_vec(),
+            extensions: Vec::new(),
+            watch_folders: Vec::new(),
         }
     }
 }
 
 impl Profile {
     pub fn new(name: &str, exe: &str) -> Self {
+        let extensions = crate::presets::find(exe)
+            .map(|p| p.extensions.iter().map(|e| e.to_string()).collect())
+            .unwrap_or_default();
         Self {
             name: name.into(),
             exe: exe.into(),
+            extensions,
             ..Default::default()
         }
     }
@@ -121,6 +169,7 @@ impl Default for Config {
                 Profile::new("Krita", "krita.exe"),
             ],
             smart: SmartSave::default(),
+            backups: BackupConfig::default(),
             processes: Vec::new(),
             interval_minutes: None,
         }
@@ -151,6 +200,7 @@ impl Config {
         }
         self.profiles = profiles;
         self.smart = self.smart.normalized();
+        self.backups = self.backups.normalized();
         self
     }
 
@@ -174,7 +224,23 @@ impl Profile {
         self.shortcut = shortcut::normalize(&self.shortcut).unwrap_or_else(|| DEFAULT_SHORTCUT.into());
         self.untitled_markers = clean_list(self.untitled_markers);
         self.dirty_markers = clean_list(self.dirty_markers);
+        self.extensions = clean_list(
+            self.extensions
+                .iter()
+                .map(|e| e.trim().trim_start_matches('.').to_lowercase())
+                .collect(),
+        );
+        self.watch_folders = clean_list(self.watch_folders);
         self
+    }
+
+    /// El archivo pertenece a este programa (extensión y carpeta vigilada).
+    pub fn owns_file(&self, path: &Path) -> bool {
+        let Some(ext) = path.extension().map(|e| e.to_string_lossy().to_lowercase()) else {
+            return false;
+        };
+        self.extensions.contains(&ext)
+            && self.watch_folders.iter().any(|folder| path.starts_with(folder))
     }
 
     /// El título indica que el documento nunca se guardó.

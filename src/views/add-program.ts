@@ -34,7 +34,7 @@ export function openAddProgram() {
   m.footer.remove();
 
   function add(preset: Pick<Preset, "name" | "exe"> & Partial<Preset>) {
-    store.update((c) => c.profiles.push(newProfile(preset.name, preset.exe, preset.shortcut)));
+    store.update((c) => c.profiles.push(newProfile(preset.name, preset.exe, preset.shortcut, preset.extensions)));
     toast(t("add.added", { name: preset.name || preset.exe }));
     m.close();
   }
@@ -63,6 +63,7 @@ export function openAddProgram() {
         name: app.exe.replace(/\.exe$/, "").replace(/^./, (c) => c.toUpperCase()),
         exe: app.exe,
         shortcut: "Ctrl+S",
+        extensions: [],
       };
     content.replaceChildren(
       h("p", { class: "small muted", style: "margin:0 0 .75rem" }, t("add.open.hint")),

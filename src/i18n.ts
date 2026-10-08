@@ -3,6 +3,7 @@
 const es = {
   "nav.home": "Inicio",
   "nav.programs": "Programas",
+  "nav.backups": "Respaldos",
   "nav.settings": "Ajustes",
 
   "status.on": "Activo",
@@ -20,6 +21,9 @@ const es = {
   "home.lastSave": "Último guardado",
   "home.lastSave.none": "Aún no hay guardados en esta sesión.",
   "home.lastSave.value": "{time} · {app}",
+  "home.lastSave.verified": "Verificado: {file}",
+  "home.lastSave.unverified": "No se detectó el archivo guardado",
+  "home.lastSave.unchecked": "Añade una carpeta de proyecto para verificar los guardados",
   "home.foreground": "Ventana activa",
   "home.foreground.none": "Ninguna",
   "home.foreground.watched": "Vigilado",
@@ -49,6 +53,13 @@ const es = {
   "programs.empty.title": "Sin programas",
   "programs.empty.body": "Añade los programas que quieres proteger.",
 
+  "programs.backups": "Respaldos y verificación",
+  "programs.extensions": "Extensiones de archivo",
+  "programs.extensions.hint": "Tipos de archivo del programa, ej. blend, kra, psd. Separadas por comas.",
+  "programs.folders": "Carpetas de proyecto",
+  "programs.folders.hint": "Los archivos guardados aquí se respaldan con historial y sirven para verificar cada guardado.",
+  "programs.folders.add": "Añadir carpeta",
+  "programs.folders.empty": "Sin carpetas: no se harán respaldos de este programa.",
   "programs.advanced": "Detección del título",
   "programs.untitled": "Marcas de documento sin nombre",
   "programs.untitled.hint": "Si el título contiene alguna, no se guarda (abriría «Guardar como»). Separadas por comas.",
@@ -61,6 +72,28 @@ const es = {
   "reason.untitled": "El documento no tiene nombre: guárdalo una vez",
   "reason.elevated": "El programa corre como administrador",
   "reason.no_changes": "Sin cambios: guardado omitido",
+
+  "backups.title": "Respaldos",
+  "backups.subtitle": "Historial de versiones de tus archivos. Restaurar nunca sobrescribe el original.",
+  "backups.openFolder": "Abrir carpeta",
+  "backups.empty.title": "Aún no hay respaldos",
+  "backups.empty.body": "En Programas, añade las carpetas de proyecto de cada programa. Cada vez que se guarde un archivo, se copiará aquí con fecha y hora.",
+  "backups.disabled": "Los respaldos están desactivados en Ajustes.",
+  "backups.noFolders": "Ningún programa tiene carpetas de proyecto: no se harán respaldos.",
+  "backups.goPrograms": "Ir a Programas",
+  "backups.versions": "{count} versiones · {size}",
+  "backups.latest": "Última: {date}",
+  "backups.restore": "Restaurar",
+  "backups.restore.title": "¿Restaurar esta versión?",
+  "backups.restore.body": "Se creará una copia junto al archivo original con el nombre «(restaurado …)». El original no se modifica.",
+  "backups.restored": "Restaurado en {path}",
+  "backups.reveal": "Mostrar en carpeta",
+  "backups.delete": "Eliminar",
+  "backups.deleteAll": "Eliminar historial",
+  "backups.deleteAll.title": "¿Eliminar todas las versiones?",
+  "backups.deleteAll.body": "Se borrarán las {count} copias de {name}. El archivo original no se toca.",
+  "backups.created": "Respaldo creado: {name}",
+  "backups.unverified": "{app}: no se detectó el archivo guardado. Revisa el programa.",
 
   "add.title": "Añadir programa",
   "add.tab.open": "Abiertos ahora",
@@ -97,6 +130,18 @@ const es = {
   "settings.smart.dialogs.hint": "No envía el atajo a ventanas de exportar, preferencias, etc.",
   "settings.smart.dirty": "Guardar solo si hay cambios",
   "settings.smart.dirty.hint": "Usa la marca del título (ej. «*»). Si el programa no la muestra, guarda siempre.",
+  "settings.backups": "Respaldos",
+  "settings.backups.enabled": "Crear respaldos",
+  "settings.backups.enabled.hint": "Copia cada archivo guardado de tus carpetas de proyecto a un historial.",
+  "settings.backups.folder": "Carpeta de respaldos",
+  "settings.backups.change": "Cambiar",
+  "settings.backups.reset": "Predeterminada",
+  "settings.backups.keep": "Versiones por archivo",
+  "settings.backups.keep.hint": "Las más antiguas se borran al superar el límite.",
+  "settings.backups.gap": "Tiempo mínimo entre copias",
+  "settings.backups.gap.hint": "Evita llenar el historial si guardas muy seguido. 0 = copiar siempre.",
+  "settings.backups.max": "Espacio máximo",
+  "settings.backups.max.hint": "Se conserva siempre la última versión de cada archivo.",
   "settings.about": "Acerca de",
   "settings.about.version": "Versión {version}",
   "settings.about.license": "Software libre y gratuito bajo licencia MIT.",
@@ -105,6 +150,8 @@ const es = {
 
   "common.min": "min",
   "common.sec": "s",
+  "common.mb": "MB",
+  "common.delete": "Eliminar",
   "common.cancel": "Cancelar",
   "common.save": "Guardar",
   "common.loading": "Cargando…",
@@ -132,4 +179,22 @@ export function formatCountdown(totalSeconds: number): string {
   const minutes = Math.floor((s % 3600) / 60);
   const seconds = String(s % 60).padStart(2, "0");
   return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}` : `${minutes}:${seconds}`;
+}
+
+const DATE_LOCALE = "es";
+
+/** 1536 → "1,5 KB". */
+export function formatBytes(bytes: number): string {
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${value.toLocaleString(DATE_LOCALE, { maximumFractionDigits: unit ? 1 : 0 })} ${units[unit]}`;
+}
+
+export function formatDateTime(ms: number): string {
+  return new Date(ms).toLocaleString(DATE_LOCALE, { dateStyle: "medium", timeStyle: "short" });
 }

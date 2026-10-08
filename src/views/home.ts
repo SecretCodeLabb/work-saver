@@ -23,6 +23,7 @@ export const homeView: View = {
     );
 
     const lastSave = h("div", { class: "list-item-title" });
+    const lastSaveCheck = h("div", { class: "list-item-sub" });
     const foregroundName = h("div", { class: "list-item-title truncate" });
     const foregroundTitle = h("div", { class: "list-item-sub truncate" });
     const foregroundTag = h("span", { class: "pill" });
@@ -38,7 +39,7 @@ export const homeView: View = {
         h(
           "div",
           { class: "grid-2" },
-          card(t("home.lastSave"), h("div", { class: "row" }, icon("save"), lastSave)),
+          card(t("home.lastSave"), h("div", { class: "row" }, icon("save"), h("div", { class: "list-item-main" }, lastSave, lastSaveCheck))),
           card(
             t("home.foreground"),
             h(
@@ -150,6 +151,17 @@ export const homeView: View = {
       const last = status?.last_save;
       lastSave.textContent = last ? t("home.lastSave.value", { time: last.time, app: last.app }) : t("home.lastSave.none");
       lastSave.classList.toggle("muted", !last);
+      const profile = config.profiles.find((p) => p.id === last?.profile_id);
+      lastSaveCheck.textContent = !last
+        ? ""
+        : last.verified === true
+          ? `✓ ${t("home.lastSave.verified", { file: last.file ?? "" })}`
+          : last.verified === false
+            ? t("home.lastSave.unverified")
+            : profile && !profile.watch_folders.length
+              ? t("home.lastSave.unchecked")
+              : "";
+      lastSaveCheck.style.color = last?.verified === true ? "var(--success)" : last?.verified === false ? "var(--warning)" : "";
 
       const fg = status?.foreground ?? null;
       const watched = !!fg && config.profiles.some((p) => p.enabled && p.exe === fg.exe);
