@@ -48,6 +48,7 @@ export interface Config {
   toggle_hotkey: string;
   autostart: boolean;
   start_minimized: boolean;
+  language: string;
   profiles: Profile[];
   smart: SmartSave;
   backups: BackupConfig;

@@ -22,6 +22,7 @@ fn shared(app: &AppHandle) -> Arc<Shared> {
 pub fn apply(app: &AppHandle, config: Config) -> Result<Config, String> {
     let config = config.normalized();
     let previous = shared(app).config();
+    crate::texts::set_language(&config.language);
     shared(app).set_config(config.clone()).map_err(|e| e.to_string())?;
 
     if let Some(backups) = app.try_state::<Arc<Backups>>() {

@@ -1,7 +1,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 
 import { onSaved, onSaveUnverified } from "./api";
-import { t } from "./i18n";
+import { setLanguage, t } from "./i18n";
 import { store } from "./store";
 import { h, toast } from "./ui/dom";
 import { icon } from "./ui/icons";
@@ -85,6 +85,12 @@ function chime() {
 
 async function main() {
   await store.init();
+  setLanguage(store.config.language);
+  const language = store.config.language;
+  // Cambiar de idioma redibuja toda la interfaz.
+  store.onConfig(() => {
+    if (store.config.language !== language) location.reload();
+  });
   store.onConfig(renderBrandStatus);
   store.onStatus(renderCrashBadge);
   renderBrandStatus();

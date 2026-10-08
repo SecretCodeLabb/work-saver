@@ -1,6 +1,6 @@
-// Textos de la interfaz.
+// Textos en español (idioma de referencia: define las claves).
 
-const es = {
+export const es = {
   "nav.home": "Inicio",
   "nav.programs": "Programas",
   "nav.backups": "Respaldos",
@@ -104,14 +104,12 @@ const es = {
   "backups.latest": "Última: {date}",
   "backups.restore": "Restaurar",
   "backups.restore.title": "¿Restaurar esta versión?",
-  "backups.restore.body": "Se creará una copia junto al archivo original con el nombre «(restaurado …)». El original no se modifica.",
+  "backups.restore.body": "Se creará una copia junto al archivo original con «(restaurado …)» en el nombre. El original no se modifica.",
   "backups.restored": "Restaurado en {path}",
   "backups.reveal": "Mostrar en carpeta",
-  "backups.delete": "Eliminar",
   "backups.deleteAll": "Eliminar historial",
   "backups.deleteAll.title": "¿Eliminar todas las versiones?",
   "backups.deleteAll.body": "Se borrarán las {count} copias de {name}. El archivo original no se toca.",
-  "backups.created": "Respaldo creado: {name}",
   "backups.unverified": "{app}: no se detectó el archivo guardado. Revisa el programa.",
 
   "activity.title": "Actividad",
@@ -204,10 +202,12 @@ const es = {
   "settings.hotkey.none": "Sin atajo",
   "settings.hotkey.clear": "Quitar",
   "settings.hotkey.default": "Restablecer",
+  "settings.language": "Idioma",
+  "settings.language.hint": "Idioma de la interfaz, la bandeja y las notificaciones.",
+  "settings.language.auto": "Automático (sistema)",
   "settings.about": "Acerca de",
   "settings.about.version": "Versión {version}",
   "settings.about.license": "Software libre y gratuito bajo licencia MIT.",
-  "settings.about.source": "Código fuente",
   "settings.about.by": "Desarrollado por DXNX.3D",
 
   "common.min": "min",
@@ -215,57 +215,6 @@ const es = {
   "common.mb": "MB",
   "common.delete": "Eliminar",
   "common.cancel": "Cancelar",
-  "common.save": "Guardar",
   "common.loading": "Cargando…",
   "error.save": "No se pudo guardar la configuración",
 };
-
-export type Key = keyof typeof es;
-
-const dict: Record<Key, string> = es;
-
-export function t(key: Key, vars?: Record<string, string | number>): string {
-  let text = dict[key] ?? key;
-  if (vars) {
-    for (const [name, value] of Object.entries(vars)) {
-      text = text.split(`{${name}}`).join(String(value));
-    }
-  }
-  return text;
-}
-
-/** 75 → "1:15", 3725 → "1:02:05". */
-export function formatCountdown(totalSeconds: number): string {
-  const s = Math.max(0, Math.floor(totalSeconds));
-  const hours = Math.floor(s / 3600);
-  const minutes = Math.floor((s % 3600) / 60);
-  const seconds = String(s % 60).padStart(2, "0");
-  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}` : `${minutes}:${seconds}`;
-}
-
-const DATE_LOCALE = "es";
-
-/** 1536 → "1,5 KB". */
-export function formatBytes(bytes: number): string {
-  const units = ["B", "KB", "MB", "GB"];
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit++;
-  }
-  return `${value.toLocaleString(DATE_LOCALE, { maximumFractionDigits: unit ? 1 : 0 })} ${units[unit]}`;
-}
-
-export function formatDateTime(ms: number): string {
-  return new Date(ms).toLocaleString(DATE_LOCALE, { dateStyle: "medium", timeStyle: "short" });
-}
-
-/** 4500 → "1 h 15 min", 90 → "1 min", 20 → "20 s". */
-export function formatDuration(totalSeconds: number): string {
-  const s = Math.floor(totalSeconds);
-  if (s < 60) return `${s} s`;
-  const hours = Math.floor(s / 3600);
-  const minutes = Math.floor((s % 3600) / 60);
-  return hours ? `${hours} h ${minutes} min` : `${minutes} min`;
-}

@@ -389,10 +389,11 @@ impl Backups {
             .map(|d| d.with_timezone(&Local).format("%Y-%m-%d %H-%M").to_string())
             .unwrap_or_default();
 
-        let mut dest = dir.join(format!("{stem} (restaurado {stamp}).{ext}"));
+        let suffix = tr(Text::RestoredSuffix, &[]);
+        let mut dest = dir.join(format!("{stem} ({suffix} {stamp}).{ext}"));
         let mut n = 2;
         while dest.exists() {
-            dest = dir.join(format!("{stem} (restaurado {stamp}) {n}.{ext}"));
+            dest = dir.join(format!("{stem} ({suffix} {stamp}) {n}.{ext}"));
             n += 1;
         }
         fs::copy(&entry.path, &dest)?;

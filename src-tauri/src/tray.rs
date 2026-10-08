@@ -28,6 +28,9 @@ pub enum TrayState {
 struct TrayHandles {
     enabled: CheckMenuItem<Wry>,
     resume: MenuItem<Wry>,
+    pause: Submenu<Wry>,
+    /// Elementos con texto fijo, para traducirlos al cambiar de idioma.
+    labeled: Vec<(MenuItem<Wry>, Text)>,
     icons: [Image<'static>; 4],
     /// Último estado y texto aplicados, para no redibujar en cada ciclo.
     last: Mutex<Option<(TrayState, String)>>,
@@ -37,27 +40,26 @@ pub fn create(app: &AppHandle, config: &Config) -> tauri::Result<()> {
     let item = |id: &str, text: Text| MenuItem::with_id(app, id, tr(text, &[]), true, None::<&str>);
     let enabled = CheckMenuItem::with_id(app, "enabled", tr(Text::TrayEnabled, &[]), true, config.enabled, None::<&str>)?;
     let resume = item("resume", Text::TrayResume)?;
+    let open = item("open", Text::TrayOpen)?;
+    let pause15 = item("pause15", Text::TrayPause15)?;
+    let pause30 = item("pause30", Text::TrayPause30)?;
+    let pause60 = item("pause60", Text::TrayPause60)?;
+    let quit = item("quit", Text::TrayQuit)?;
     let pause = Submenu::with_items(
         app,
         tr(Text::TrayPause, &[]),
         true,
-        &[
-            &item("pause15", Text::TrayPause15)?,
-            &item("pause30", Text::TrayPause30)?,
-            &item("pause60", Text::TrayPause60)?,
-            &PredefinedMenuItem::separator(app)?,
-            &resume,
-        ],
+        &[&pause15, &pause30, &pause60, &PredefinedMenuItem::separator(app)?, &resume],
     )?;
     let menu = Menu::with_items(
         app,
         &[
-            &item("open", Text::TrayOpen)?,
+            &open,
             &PredefinedMenuItem::separator(app)?,
             &enabled,
             &pause,
             &PredefinedMenuItem::separator(app)?,
-            &item("quit", Text::TrayQuit)?,
+            &quit,
         ],
     )?;
 
@@ -109,19 +111,34 @@ pub fn create(app: &AppHandle, config: &Config) -> tauri::Result<()> {
 
     let _ = resume.set_enabled(config.paused_until.is_some());
     app.manage(TrayHandles {
+        labeled: vec![
+            (open, Text::TrayOpen),
+            (pause15, Text::TrayPause15),
+            (pause30, Text::TrayPause30),
+            (pause60, Text::TrayPause60),
+            (resume.clone(), Text::TrayResume),
+            (quit, Text::TrayQuit),
+        ],
         enabled,
         resume,
+        pause,
         icons,
         last: Mutex::new(None),
     });
     Ok(())
 }
 
-/// Refleja la configuración en el menú (casilla de activado, opción de reanudar).
+/// Refleja la configuración en el menú (casilla de activado, reanudar e idioma).
 pub fn sync_menu(app: &AppHandle, config: &Config) {
     if let Some(handles) = app.try_state::<TrayHandles>() {
         let _ = handles.enabled.set_checked(config.enabled);
         let _ = handles.resume.set_enabled(config.paused_until.is_some());
+        let _ = handles.enabled.set_text(tr(Text::TrayEnabled, &[]));
+        let _ = handles.pause.set_text(tr(Text::TrayPause, &[]));
+        for (item, text) in &handles.labeled {
+            let _ = item.set_text(tr(*text, &[]));
+        }
+        *lock(&handles.last) = None;
     }
 }
 

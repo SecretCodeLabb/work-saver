@@ -50,6 +50,7 @@ pub fn run() {
         .setup(|app| {
             let config_path = app.path().app_config_dir()?.join("config.json");
             let shared = Arc::new(Shared::load(config_path));
+            texts::set_language(&shared.config().language);
             app.manage(shared.clone());
 
             let data_dir = app.path().app_data_dir()?;

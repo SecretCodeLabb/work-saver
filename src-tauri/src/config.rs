@@ -31,6 +31,8 @@ pub struct Config {
     pub autostart: bool,
     /// Al iniciar con Windows, quedarse en la bandeja sin abrir la ventana.
     pub start_minimized: bool,
+    /// "auto" (idioma del sistema), "es" o "en".
+    pub language: String,
 
     // Campos de la v1.0 (lista global de procesos); solo se leen para migrar.
     #[serde(skip_serializing)]
@@ -213,6 +215,7 @@ impl Default for Config {
             paused_until: None,
             autostart: false,
             start_minimized: true,
+            language: "auto".into(),
             processes: Vec::new(),
             interval_minutes: None,
         }
@@ -245,6 +248,9 @@ impl Config {
         self.smart = self.smart.normalized();
         self.backups = self.backups.normalized();
         self.notifications.warn_seconds = self.notifications.warn_seconds.clamp(1, 60);
+        if !["auto", "es", "en"].contains(&self.language.as_str()) {
+            self.language = "auto".into();
+        }
         self.toggle_hotkey = if self.toggle_hotkey.trim().is_empty() {
             String::new()
         } else {

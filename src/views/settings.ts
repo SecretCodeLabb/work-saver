@@ -36,6 +36,7 @@ export const settingsView: View = {
         notificationsCard(store.config),
         startupCard(store.config),
         hotkeyCard(store.config),
+        languageCard(store.config),
         aboutCard(),
       );
     render();
@@ -199,6 +200,19 @@ function hotkeyCard(config: Config) {
         : button(t("settings.hotkey.default"), () => set((c) => (c.toggle_hotkey = DEFAULT_HOTKEY)), { small: true, variant: "ghost" }),
     ),
   );
+}
+
+function languageCard(config: Config) {
+  const select = h(
+    "select",
+    { class: "select", style: "width:14rem" },
+    h("option", { value: "auto" }, t("settings.language.auto")),
+    h("option", { value: "es" }, "Español"),
+    h("option", { value: "en" }, "English"),
+  );
+  select.value = config.language;
+  select.addEventListener("change", () => set((c) => (c.language = select.value)));
+  return card(t("settings.language"), field(t("settings.language"), t("settings.language.hint"), select));
 }
 
 function aboutCard() {
