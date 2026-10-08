@@ -1,7 +1,9 @@
 {
-  "name": "work-saver",
+  "name": "dont-crash-now",
   "private": true,
-  "version": "0.1.0",
+  "description": "Autoguardado para software de diseño, arte digital y 3D",
+  "license": "MIT",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

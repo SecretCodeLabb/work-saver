@@ -823,6 +823,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "dont-crash-now"
+version = "1.0.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "windows 0.58.0",
+]
+
+[[package]]
 name = "dpi"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4807,19 +4820,6 @@ name = "wit-bindgen"
 version = "0.57.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
-
-[[package]]
-name = "work-saver"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
- "windows 0.58.0",
-]
 
 [[package]]
 name = "writeable"

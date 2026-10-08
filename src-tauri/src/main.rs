@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    work_saver_lib::run()
+    dont_crash_now_lib::run()
 }
