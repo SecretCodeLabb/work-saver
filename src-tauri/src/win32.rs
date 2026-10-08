@@ -4,18 +4,21 @@ use std::mem::size_of;
 use std::path::Path;
 
 use windows::core::PWSTR;
-use windows::Win32::Foundation::{CloseHandle, BOOL, HWND, LPARAM};
+use windows::Win32::Foundation::{CloseHandle, BOOL, HANDLE, HWND, LPARAM};
+use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+use windows::Win32::System::SystemInformation::GetTickCount;
 use windows::Win32::System::Threading::{
-    OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+    GetCurrentProcess, OpenProcess, OpenProcessToken, QueryFullProcessImageNameW,
+    PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
-    VIRTUAL_KEY,
+    GetAsyncKeyState, GetLastInputInfo, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT,
+    KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, LASTINPUTINFO, VIRTUAL_KEY,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetForegroundWindow, GetWindow, GetWindowLongW, GetWindowTextLengthW,
-    GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible, GWL_EXSTYLE, GW_OWNER,
-    WS_EX_TOOLWINDOW,
+    EnumWindows, GetClassNameW, GetForegroundWindow, GetWindow, GetWindowLongW,
+    GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible, GWL_EXSTYLE,
+    GW_OWNER, WS_EX_TOOLWINDOW,
 };
 
 /// Información de una ventana de nivel superior.
@@ -147,4 +150,76 @@ fn key_input(vk: u16, key_up: bool) -> INPUT {
             },
         },
     }
+}
+
+/// Indica si la ventana es un cuadro de diálogo (ventana con dueño o clase estándar de diálogo).
+pub fn is_dialog(hwnd: isize) -> bool {
+    let hwnd = HWND(hwnd as *mut _);
+    unsafe {
+        let has_owner = GetWindow(hwnd, GW_OWNER).map(|o| !o.0.is_null()).unwrap_or(false);
+        let mut class = [0u16; 64];
+        let len = GetClassNameW(hwnd, &mut class).max(0) as usize;
+        has_owner || String::from_utf16_lossy(&class[..len]) == "#32770"
+    }
+}
+
+/// Milisegundos desde la última pulsación de tecla, movimiento de ratón o lápiz.
+pub fn idle_millis() -> u64 {
+    let mut info = LASTINPUTINFO {
+        cbSize: size_of::<LASTINPUTINFO>() as u32,
+        dwTime: 0,
+    };
+    unsafe {
+        if !GetLastInputInfo(&mut info).as_bool() {
+            return 0;
+        }
+        u64::from(GetTickCount().wrapping_sub(info.dwTime))
+    }
+}
+
+/// Botones del ratón/lápiz, modificadores o espacio (paneo) que estén presionados ahora.
+pub fn input_held() -> bool {
+    const KEYS: [i32; 11] = [
+        0x01, 0x02, 0x04, 0x05, 0x06, // botones del ratón y laterales
+        0x10, 0x11, 0x12, // Shift, Ctrl, Alt
+        0x5B, 0x5C, // Windows
+        0x20, // Espacio
+    ];
+    KEYS.iter().any(|&vk| unsafe { GetAsyncKeyState(vk) } as u16 & 0x8000 != 0)
+}
+
+/// `true` si el proceso (o el propio, con `None`) se ejecuta como administrador.
+/// Si no se puede consultar su token se asume que sí (Windows lo protege).
+pub fn is_elevated(pid: Option<u32>) -> bool {
+    unsafe {
+        let process = match pid {
+            None => GetCurrentProcess(),
+            Some(pid) => match OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+                Ok(handle) => handle,
+                Err(_) => return true,
+            },
+        };
+        let elevated = token_elevated(process).unwrap_or(pid.is_some());
+        if pid.is_some() {
+            let _ = CloseHandle(process);
+        }
+        elevated
+    }
+}
+
+unsafe fn token_elevated(process: HANDLE) -> Option<bool> {
+    let mut token = HANDLE::default();
+    OpenProcessToken(process, TOKEN_QUERY, &mut token).ok()?;
+    let mut elevation = TOKEN_ELEVATION::default();
+    let mut size = 0u32;
+    let result = GetTokenInformation(
+        token,
+        TokenElevation,
+        Some(&mut elevation as *mut _ as *mut _),
+        size_of::<TOKEN_ELEVATION>() as u32,
+        &mut size,
+    );
+    let _ = CloseHandle(token);
+    result.ok()?;
+    Some(elevation.TokenIsElevated != 0)
 }

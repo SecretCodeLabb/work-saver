@@ -10,11 +10,23 @@ export interface Profile {
   enabled: boolean;
   interval_minutes: number;
   shortcut: string;
+  untitled_markers: string[];
+  dirty_markers: string[];
+}
+
+export interface SmartSave {
+  wait_for_idle: boolean;
+  idle_seconds: number;
+  max_wait_seconds: number;
+  skip_untitled: boolean;
+  skip_dialogs: boolean;
+  only_when_dirty: boolean;
 }
 
 export interface Config {
   enabled: boolean;
   profiles: Profile[];
+  smart: SmartSave;
 }
 
 export interface Preset {
@@ -34,9 +46,12 @@ export interface SaveInfo {
   profile_id: string;
 }
 
+export type Reason = "busy" | "input_held" | "dialog" | "untitled" | "elevated" | "no_changes";
+
 export interface ProfileStatus {
   id: string;
   next_save_in: number;
+  reason: Reason | null;
 }
 
 export interface Status {
@@ -58,7 +73,7 @@ export function onStatus(callback: (status: Status) => void) {
   return listen<Status>("status", (event) => callback(event.payload));
 }
 
-/** Perfil nuevo con valores por defecto (el backend completa el resto). */
+/** Perfil nuevo; los campos omitidos los completa el backend con sus valores por defecto. */
 export function newProfile(name: string, exe: string, shortcut = "Ctrl+S"): Profile {
   return {
     id: crypto.randomUUID(),
@@ -67,5 +82,5 @@ export function newProfile(name: string, exe: string, shortcut = "Ctrl+S"): Prof
     enabled: true,
     interval_minutes: 5,
     shortcut,
-  };
+  } as Profile;
 }

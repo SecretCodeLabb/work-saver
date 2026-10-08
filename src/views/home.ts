@@ -72,14 +72,17 @@ export const homeView: View = {
       }
       heroTitle.textContent = t("home.on.title");
       const active = config.profiles.find((p) => p.id === status?.active_profile);
-      const remaining = status?.profiles.find((p) => p.id === active?.id)?.next_save_in;
+      const activeStatus = status?.profiles.find((p) => p.id === active?.id);
+      const remaining = activeStatus?.next_save_in;
       if (!config.profiles.some((p) => p.enabled)) {
         heroSub.textContent = t("home.noPrograms");
       } else if (active && remaining !== undefined) {
         heroSub.textContent =
           remaining > 0
             ? t("home.next", { app: active.name, time: formatCountdown(remaining) })
-            : t("home.saving", { app: active.name });
+            : activeStatus?.reason
+              ? `${active.name}: ${t(`reason.${activeStatus.reason}`)}`
+              : t("home.saving", { app: active.name });
       } else {
         heroSub.textContent = t("home.waiting");
       }
@@ -101,11 +104,18 @@ export const homeView: View = {
       }
       programs.replaceChildren(
         ...enabled.map((profile) => {
-          const remaining = status?.profiles.find((p) => p.id === profile.id)?.next_save_in ?? 0;
+          const ps = status?.profiles.find((p) => p.id === profile.id);
+          const remaining = ps?.next_save_in ?? 0;
           const total = profile.interval_minutes * 60;
           const progress = config.enabled ? Math.min(100, ((total - remaining) / total) * 100) : 0;
           const isActive = status?.active_profile === profile.id;
-          const label = !config.enabled ? t("status.off") : remaining > 0 ? formatCountdown(remaining) : t("programs.pending");
+          const label = !config.enabled
+            ? t("status.off")
+            : remaining > 0
+              ? formatCountdown(remaining)
+              : ps?.reason
+                ? t(`reason.${ps.reason}`)
+                : t("programs.pending");
           return h(
             "div",
             { class: "list-item" },

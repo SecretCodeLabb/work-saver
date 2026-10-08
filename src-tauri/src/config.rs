@@ -20,6 +20,7 @@ pub struct Config {
     pub enabled: bool,
     /// Un perfil por programa vigilado.
     pub profiles: Vec<Profile>,
+    pub smart: SmartSave,
 
     // Campos de la v1.0 (lista global de procesos); solo se leen para migrar.
     #[serde(skip_serializing)]
@@ -41,7 +42,50 @@ pub struct Profile {
     pub interval_minutes: u32,
     /// Atajo que guarda el documento (ej. "Ctrl+S").
     pub shortcut: String,
+    /// Textos del título que indican un documento sin nombre (no se guarda).
+    pub untitled_markers: Vec<String>,
+    /// Textos del título que indican cambios sin guardar (ej. "*").
+    pub dirty_markers: Vec<String>,
 }
+
+/// Reglas para no interrumpir al usuario al guardar.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SmartSave {
+    /// Esperar a que el usuario deje de usar teclado, ratón o lápiz.
+    pub wait_for_idle: bool,
+    pub idle_seconds: u32,
+    /// Pasado este tiempo se guarda aunque no haya pausa (si no hay teclas pulsadas).
+    pub max_wait_seconds: u32,
+    pub skip_untitled: bool,
+    pub skip_dialogs: bool,
+    /// Guardar solo si el título indica cambios sin guardar.
+    pub only_when_dirty: bool,
+}
+
+impl Default for SmartSave {
+    fn default() -> Self {
+        Self {
+            wait_for_idle: true,
+            idle_seconds: 2,
+            max_wait_seconds: 120,
+            skip_untitled: true,
+            skip_dialogs: true,
+            only_when_dirty: true,
+        }
+    }
+}
+
+impl SmartSave {
+    fn normalized(mut self) -> Self {
+        self.idle_seconds = self.idle_seconds.clamp(1, 30);
+        self.max_wait_seconds = self.max_wait_seconds.clamp(10, 900);
+        self
+    }
+}
+
+pub const DEFAULT_UNTITLED_MARKERS: [&str; 4] = ["Untitled-", "Sin título-", "Unsaved", "Sin guardar"];
+pub const DEFAULT_DIRTY_MARKERS: [&str; 1] = ["*"];
 
 impl Default for Profile {
     fn default() -> Self {
@@ -52,6 +96,8 @@ impl Default for Profile {
             enabled: true,
             interval_minutes: 5,
             shortcut: DEFAULT_SHORTCUT.into(),
+            untitled_markers: DEFAULT_UNTITLED_MARKERS.map(String::from).to_vec(),
+            dirty_markers: DEFAULT_DIRTY_MARKERS.map(String::from).to_vec(),
         }
     }
 }
@@ -74,6 +120,7 @@ impl Default for Config {
                 Profile::new("Blender", "blender.exe"),
                 Profile::new("Krita", "krita.exe"),
             ],
+            smart: SmartSave::default(),
             processes: Vec::new(),
             interval_minutes: None,
         }
@@ -103,6 +150,7 @@ impl Config {
             }
         }
         self.profiles = profiles;
+        self.smart = self.smart.normalized();
         self
     }
 
@@ -124,8 +172,37 @@ impl Profile {
         }
         self.interval_minutes = self.interval_minutes.clamp(MIN_INTERVAL, MAX_INTERVAL);
         self.shortcut = shortcut::normalize(&self.shortcut).unwrap_or_else(|| DEFAULT_SHORTCUT.into());
+        self.untitled_markers = clean_list(self.untitled_markers);
+        self.dirty_markers = clean_list(self.dirty_markers);
         self
     }
+
+    /// El título indica que el documento nunca se guardó.
+    pub fn is_untitled(&self, title: &str) -> bool {
+        contains_any(title, &self.untitled_markers)
+    }
+
+    /// El título indica cambios sin guardar.
+    pub fn is_dirty(&self, title: &str) -> bool {
+        contains_any(title, &self.dirty_markers)
+    }
+}
+
+fn contains_any(title: &str, markers: &[String]) -> bool {
+    let title = title.to_lowercase();
+    markers.iter().any(|m| title.contains(&m.to_lowercase()))
+}
+
+/// Quita espacios sobrantes, vacíos y duplicados.
+fn clean_list(items: Vec<String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for item in items {
+        let item = item.trim().to_string();
+        if !item.is_empty() && !out.contains(&item) {
+            out.push(item);
+        }
+    }
+    out
 }
 
 /// "Blender" → "blender.exe", "  KRITA.EXE " → "krita.exe".
@@ -182,4 +259,27 @@ pub fn save(path: &Path, config: &Config) -> io::Result<()> {
     let json = serde_json::to_string_pretty(config).map_err(io::Error::other)?;
     fs::write(&tmp, json)?;
     fs::rename(&tmp, path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn migrates_v1_process_list() {
+        let json = r#"{"enabled":true,"interval_minutes":3,"processes":["Krita.exe","aseprite"]}"#;
+        let config = serde_json::from_str::<Config>(json).unwrap().normalized();
+        let exes: Vec<_> = config.profiles.iter().map(|p| p.exe.as_str()).collect();
+        assert_eq!(exes, ["krita.exe", "aseprite.exe"]);
+        assert!(config.profiles.iter().all(|p| p.interval_minutes == 3 && !p.id.is_empty()));
+    }
+
+    #[test]
+    fn detects_title_markers() {
+        let profile = Profile::new("Photoshop", "photoshop.exe");
+        assert!(profile.is_untitled("Untitled-1 @ 66,7% (RGB/8)"));
+        assert!(!profile.is_untitled("retrato.psd @ 50%"));
+        assert!(profile.is_dirty("escena.blend* - Blender"));
+        assert!(!profile.is_dirty("escena.blend - Blender"));
+    }
 }

@@ -20,6 +20,11 @@ function textInput(value: string, onChange: (value: string) => void) {
   return input;
 }
 
+/** Lista editable como texto separado por comas. */
+function listInput(values: string[], onChange: (values: string[]) => void) {
+  return textInput(values.join(", "), (v) => onChange(v.split(",").map((x) => x.trim()).filter(Boolean)));
+}
+
 export const programsView: View = {
   id: "programs",
   icon: "apps",
@@ -96,6 +101,17 @@ export const programsView: View = {
             t("programs.shortcut.hint"),
             shortcutInput(profile.shortcut, (v) => updateProfile(profile.id, (p) => (p.shortcut = v))),
           ),
+          h("h3", { class: "card-title", style: "margin:1.25rem 0 .25rem" }, t("programs.advanced")),
+          field(
+            t("programs.untitled"),
+            t("programs.untitled.hint"),
+            listInput(profile.untitled_markers, (v) => updateProfile(profile.id, (p) => (p.untitled_markers = v))),
+          ),
+          field(
+            t("programs.dirty"),
+            t("programs.dirty.hint"),
+            listInput(profile.dirty_markers, (v) => updateProfile(profile.id, (p) => (p.dirty_markers = v))),
+          ),
           h(
             "div",
             { class: "row", style: "margin-top:.75rem" },
@@ -131,7 +147,9 @@ export const programsView: View = {
       for (const profile of store.config.profiles) {
         const pill = countdowns.get(profile.id);
         if (!pill) continue;
-        const remaining = status?.profiles.find((p) => p.id === profile.id)?.next_save_in;
+        const ps = status?.profiles.find((p) => p.id === profile.id);
+        const remaining = ps?.next_save_in;
+        pill.title = ps?.reason ? t(`reason.${ps.reason}`) : "";
         if (!profile.enabled) {
           pill.textContent = t("programs.disabled");
           pill.className = "pill";
@@ -142,8 +160,8 @@ export const programsView: View = {
           pill.textContent = formatCountdown(remaining);
           pill.className = status?.active_profile === profile.id ? "pill on" : "pill";
         } else {
-          pill.textContent = t("programs.pending");
-          pill.className = "pill warn";
+          pill.textContent = ps?.reason ? t(`reason.${ps.reason}`) : t("programs.pending");
+          pill.className = ps?.reason === "untitled" || ps?.reason === "elevated" ? "pill danger" : "pill warn";
         }
       }
     }

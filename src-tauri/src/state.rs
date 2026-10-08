@@ -7,6 +7,7 @@ use std::sync::{Mutex, MutexGuard};
 use serde::Serialize;
 
 use crate::config::{self, Config};
+use crate::scheduler::Reason;
 
 pub struct Shared {
     config: Mutex<Config>,
@@ -51,6 +52,8 @@ pub struct ProfileStatus {
     pub id: String,
     /// Segundos para el próximo guardado (0 = pendiente).
     pub next_save_in: u64,
+    /// Motivo por el que el guardado pendiente espera o se omitió.
+    pub reason: Option<Reason>,
 }
 
 impl Shared {
