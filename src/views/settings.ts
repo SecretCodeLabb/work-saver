@@ -1,21 +1,14 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { openUrl } from "@tauri-apps/plugin-opener";
 
 import { api, Config } from "../api";
 import logoUrl from "../assets/DCN.svg";
 import { t } from "../i18n";
 import { store } from "../store";
 import { button, card, field, h, numberInput, switchEl, viewHeader } from "../ui/dom";
-import type { IconName } from "../ui/icons";
 import { shortcutInput } from "../ui/shortcut-input";
+import { socialLinks } from "../ui/social";
 import type { View } from "./view";
-
-const LINKS: { icon: IconName; title: string; url: string }[] = [
-  { icon: "github", title: "GitHub", url: "https://github.com/SecretCodeLabb/work-saver" },
-  { icon: "instagram", title: "Instagram", url: "https://www.instagram.com/dxnx.3d/" },
-  { icon: "artstation", title: "ArtStation", url: "https://www.artstation.com/danimation21" },
-];
 
 const set = (mutate: (config: Config) => void) => store.update(mutate);
 
@@ -232,11 +225,7 @@ function aboutCard() {
         h("div", { class: "small muted" }, t("settings.about.license")),
         h("div", { class: "small faint" }, t("settings.about.by")),
       ),
-      h(
-        "div",
-        { class: "links" },
-        LINKS.map((link) => button(null, () => openUrl(link.url), { variant: "ghost", icon: link.icon, title: link.title })),
-      ),
+      socialLinks(),
     ),
   );
 }

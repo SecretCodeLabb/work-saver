@@ -5,6 +5,7 @@ import { setLanguage, t } from "./i18n";
 import { store } from "./store";
 import { h, toast } from "./ui/dom";
 import { icon } from "./ui/icons";
+import { socialLinks } from "./ui/social";
 import { activityView } from "./views/activity";
 import { backupsView } from "./views/backups";
 import { homeView } from "./views/home";
@@ -100,7 +101,8 @@ async function main() {
     if (store.config.notifications.sound) chime();
   });
   await onSaveUnverified((check) => toast(t("backups.unverified", { app: check.app }), "error"));
-  sidebarFooter.textContent = `v${await getVersion()} · MIT`;
+  document.getElementById("sidebar-social")!.replaceWith(socialLinks("sidebar-social"));
+  sidebarFooter.textContent = `v${await getVersion()} · MIT · DXNX.3D`;
 }
 
 main().catch((error) => console.error(error));
