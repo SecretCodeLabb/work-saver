@@ -1,6 +1,6 @@
 // Estado de la interfaz: configuración y último estado recibido del backend.
 
-import { api, Config, onStatus, Status } from "./api";
+import { api, Config, onConfigChanged, onStatus, Status } from "./api";
 import { t } from "./i18n";
 import { toast } from "./ui/dom";
 
@@ -14,6 +14,8 @@ class Store {
 
   async init() {
     this.config = await api.getConfig();
+    // Cambios hechos desde la bandeja, el atajo global o al terminar una pausa.
+    await onConfigChanged(() => this.reload());
     await onStatus((status) => {
       this.status = status;
       this.statusListeners.forEach((fn) => fn());
@@ -37,6 +39,10 @@ class Store {
   async reload() {
     this.config = await api.getConfig();
     this.notifyConfig();
+  }
+
+  get paused(): boolean {
+    return this.config.enabled && this.config.paused_until !== null;
   }
 
   onConfig(fn: Listener): () => void {

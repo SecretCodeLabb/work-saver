@@ -1,6 +1,6 @@
 import { getVersion } from "@tauri-apps/api/app";
 
-import { onSaveUnverified } from "./api";
+import { onSaved, onSaveUnverified } from "./api";
 import { t } from "./i18n";
 import { store } from "./store";
 import { h, toast } from "./ui/dom";
@@ -49,9 +49,27 @@ export function navigate(id: string) {
 }
 
 function renderBrandStatus() {
-  const on = store.config.enabled;
-  brandStatus.textContent = on ? t("status.on") : t("status.off");
-  brandStatus.className = on ? "pill on" : "pill";
+  const { enabled } = store.config;
+  brandStatus.textContent = !enabled ? t("status.off") : store.paused ? t("status.paused") : t("status.on");
+  brandStatus.className = !enabled ? "pill" : store.paused ? "pill warn" : "pill on";
+}
+
+/** Tono breve de confirmación (dos notas suaves). */
+function chime() {
+  const ctx = new AudioContext();
+  [660, 880].forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const start = ctx.currentTime + i * 0.12;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.08, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.25);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + 0.3);
+  });
+  setTimeout(() => ctx.close(), 800);
 }
 
 async function main() {
@@ -60,6 +78,9 @@ async function main() {
   renderBrandStatus();
   navigate("home");
   document.addEventListener("navigate", (e) => navigate((e as CustomEvent<string>).detail));
+  await onSaved(() => {
+    if (store.config.notifications.sound) chime();
+  });
   await onSaveUnverified((check) => toast(t("backups.unverified", { app: check.app }), "error"));
   sidebarFooter.textContent = `v${await getVersion()} · MIT`;
 }

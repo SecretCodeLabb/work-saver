@@ -1,5 +1,6 @@
 import { formatCountdown, t } from "../i18n";
 import { store } from "../store";
+import { api } from "../api";
 import { button, card, h, initials, switchEl, viewHeader } from "../ui/dom";
 import { icon } from "../ui/icons";
 import { openAddProgram } from "./add-program";
@@ -14,13 +15,22 @@ export const homeView: View = {
     const toggle = switchEl(store.config.enabled, (enabled) => store.update((c) => (c.enabled = enabled)), true);
     const heroTitle = h("h2");
     const heroSub = h("p");
+    const heroActions = h("div", { class: "hero-actions" });
     const hero = h(
       "section",
       { class: "card hero" },
       h("div", { class: "hero-icon" }, icon("shieldCheck", 26)),
-      h("div", { class: "hero-text" }, heroTitle, heroSub),
+      h("div", { class: "hero-text" }, heroTitle, heroSub, heroActions),
       toggle,
     );
+    const pauseButtons = h(
+      "div",
+      { class: "row wrap" },
+      ([15, 30, 60] as const).map((minutes) =>
+        button(t("home.pause", { label: t(`home.pause.${minutes}`) }), () => api.pause(minutes), { small: true, icon: "pause" }),
+      ),
+    );
+    const resumeButton = button(t("home.resume"), () => api.resume(), { small: true, variant: "primary", icon: "play" });
 
     const lastSave = h("div", { class: "list-item-title" });
     const lastSaveCheck = h("div", { class: "list-item-sub" });
@@ -64,11 +74,22 @@ export const homeView: View = {
     function renderHero() {
       const { config, status } = store;
       toggle.input.checked = config.enabled;
-      hero.classList.toggle("on", config.enabled);
+      hero.classList.toggle("on", config.enabled && !store.paused);
+      hero.classList.toggle("paused", store.paused);
+
+      const actions = !config.enabled ? null : store.paused ? resumeButton : pauseButtons;
+      if (heroActions.firstChild !== actions) heroActions.replaceChildren(actions ?? "");
+      heroActions.hidden = !actions;
 
       if (!config.enabled) {
         heroTitle.textContent = t("home.off.title");
         heroSub.textContent = t("home.off.sub");
+        return;
+      }
+      if (store.paused) {
+        const time = new Date(config.paused_until!).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        heroTitle.textContent = t("home.paused.title");
+        heroSub.textContent = t("home.paused.sub", { time });
         return;
       }
       heroTitle.textContent = t("home.on.title");
@@ -108,10 +129,13 @@ export const homeView: View = {
           const ps = status?.profiles.find((p) => p.id === profile.id);
           const remaining = ps?.next_save_in ?? 0;
           const total = profile.interval_minutes * 60;
-          const progress = config.enabled ? Math.min(100, ((total - remaining) / total) * 100) : 0;
+          const running = config.enabled && !store.paused;
+          const progress = running ? Math.min(100, ((total - remaining) / total) * 100) : 0;
           const isActive = status?.active_profile === profile.id;
           const label = !config.enabled
             ? t("status.off")
+            : store.paused
+              ? t("status.paused")
             : remaining > 0
               ? formatCountdown(remaining)
               : ps?.reason
@@ -134,7 +158,7 @@ export const homeView: View = {
               ),
               h(
                 "div",
-                { class: remaining === 0 && config.enabled ? "progress warn" : isActive ? "progress on" : "progress" },
+                { class: remaining === 0 && running ? "progress warn" : isActive ? "progress on" : "progress" },
                 h("div", { style: `width:${progress}%` }),
               ),
             ),

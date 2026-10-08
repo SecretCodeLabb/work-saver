@@ -8,6 +8,7 @@ import { t } from "../i18n";
 import { store } from "../store";
 import { button, card, field, h, numberInput, switchEl, viewHeader } from "../ui/dom";
 import type { IconName } from "../ui/icons";
+import { shortcutInput } from "../ui/shortcut-input";
 import type { View } from "./view";
 
 const LINKS: { icon: IconName; title: string; url: string }[] = [
@@ -28,7 +29,14 @@ export const settingsView: View = {
     root.append(h("div", { class: "view-inner" }, viewHeader(t("settings.title"), t("settings.subtitle")), content));
 
     // Se redibuja al cambiar la configuración (ej. desde la bandeja).
-    const render = () => content.replaceChildren(smartCard(store.config), backupsCard(store.config), aboutCard());
+    const render = () =>
+      content.replaceChildren(
+        smartCard(store.config),
+        backupsCard(store.config),
+        notificationsCard(store.config),
+        hotkeyCard(store.config),
+        aboutCard(),
+      );
     render();
     return store.onConfig(render);
   },
@@ -118,6 +126,58 @@ function backupsCard(config: Config) {
       t("settings.backups.max.hint"),
       numberInput(backups.max_total_mb, 50, 1_000_000, (v) => set((c) => (c.backups.max_total_mb = v))),
       h("span", { class: "muted" }, t("common.mb")),
+    ),
+  );
+}
+
+function notificationsCard(config: Config) {
+  const n = config.notifications;
+  return card(
+    t("settings.notifications"),
+    field(
+      t("settings.notifications.onProblem"),
+      t("settings.notifications.onProblem.hint"),
+      switchEl(n.on_problem, (v) => set((c) => (c.notifications.on_problem = v))),
+    ),
+    field(
+      t("settings.notifications.onSave"),
+      t("settings.notifications.onSave.hint"),
+      switchEl(n.on_save, (v) => set((c) => (c.notifications.on_save = v))),
+    ),
+    field(
+      t("settings.notifications.warn"),
+      t("settings.notifications.warn.hint"),
+      switchEl(n.warn_before, (v) => set((c) => (c.notifications.warn_before = v))),
+    ),
+    n.warn_before
+      ? field(
+          t("settings.notifications.warnSeconds"),
+          null,
+          numberInput(n.warn_seconds, 1, 60, (v) => set((c) => (c.notifications.warn_seconds = v))),
+          h("span", { class: "muted" }, t("common.sec")),
+        )
+      : null,
+    field(
+      t("settings.notifications.sound"),
+      t("settings.notifications.sound.hint"),
+      switchEl(n.sound, (v) => set((c) => (c.notifications.sound = v))),
+    ),
+  );
+}
+
+const DEFAULT_HOTKEY = "Ctrl+Shift+Alt+F9";
+
+function hotkeyCard(config: Config) {
+  const input = shortcutInput(config.toggle_hotkey || t("settings.hotkey.none"), (v) => set((c) => (c.toggle_hotkey = v)));
+  return card(
+    t("settings.hotkey"),
+    field(
+      t("settings.hotkey.label"),
+      t("settings.hotkey.hint"),
+      input,
+      config.toggle_hotkey
+        ? button(t("settings.hotkey.clear"), () => set((c) => (c.toggle_hotkey = "")), { small: true, variant: "ghost" })
+        : button(t("settings.hotkey.default"), () => set((c) => (c.toggle_hotkey = DEFAULT_HOTKEY)), { small: true, variant: "ghost" }),
     ),
   );
 }

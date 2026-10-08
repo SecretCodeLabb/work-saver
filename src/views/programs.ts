@@ -196,8 +196,8 @@ export const programsView: View = {
         if (!profile.enabled) {
           pill.textContent = t("programs.disabled");
           pill.className = "pill";
-        } else if (!store.config.enabled || remaining === undefined) {
-          pill.textContent = t("status.off");
+        } else if (!store.config.enabled || store.paused || remaining === undefined) {
+          pill.textContent = store.paused ? t("status.paused") : t("status.off");
           pill.className = "pill";
         } else if (remaining > 0) {
           pill.textContent = formatCountdown(remaining);

@@ -8,6 +8,7 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 use tauri_plugin_opener::OpenerExt;
 
+use crate::actions;
 use crate::backup::{BackupGroup, Backups};
 use crate::config::Config;
 use crate::presets::{Preset, PRESETS};
@@ -24,12 +25,18 @@ pub fn get_config(shared: SharedState) -> Config {
 
 /// Reemplaza la configuración, la guarda y devuelve la versión normalizada.
 #[tauri::command]
-pub fn set_config(config: Config, shared: SharedState, backups: BackupState) -> Result<Config, String> {
-    let config = config.normalized();
-    shared.set_config(config.clone()).map_err(|e| e.to_string())?;
-    backups.refresh_watches();
-    backups.apply_limits();
-    Ok(config)
+pub fn set_config(config: Config, app: AppHandle) -> Result<Config, String> {
+    actions::apply(&app, config)
+}
+
+#[tauri::command]
+pub fn pause(minutes: u32, app: AppHandle) {
+    actions::pause(&app, minutes.clamp(1, 24 * 60));
+}
+
+#[tauri::command]
+pub fn resume(app: AppHandle) {
+    actions::resume(&app);
 }
 
 

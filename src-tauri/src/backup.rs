@@ -18,7 +18,9 @@ use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 
+use crate::actions;
 use crate::config::{BackupConfig, Config, Profile};
+use crate::texts::{tr, Text};
 use crate::state::{lock, Shared};
 
 /// Tiempo sin cambios antes de considerar que el archivo terminó de escribirse.
@@ -270,6 +272,13 @@ impl Backups {
             }
             // Solo es un problema si había cambios: sin cambios muchos programas no escriben nada.
             if dirty {
+                if self.shared.config().notifications.on_problem {
+                    actions::notify(
+                        &self.app,
+                        &tr(Text::NotifyUnverifiedTitle, &[("app", &app)]),
+                        &tr(Text::NotifyUnverifiedBody, &[]),
+                    );
+                }
                 let _ = self.app.emit("save_unverified", SaveCheck { profile_id, app, file: None });
             }
         }

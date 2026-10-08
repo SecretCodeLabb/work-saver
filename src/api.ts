@@ -33,8 +33,19 @@ export interface SmartSave {
   only_when_dirty: boolean;
 }
 
+export interface Notifications {
+  on_save: boolean;
+  on_problem: boolean;
+  warn_before: boolean;
+  warn_seconds: number;
+  sound: boolean;
+}
+
 export interface Config {
   enabled: boolean;
+  paused_until: number | null;
+  notifications: Notifications;
+  toggle_hotkey: string;
   profiles: Profile[];
   smart: SmartSave;
   backups: BackupConfig;
@@ -83,7 +94,7 @@ export interface BackupGroup {
   entries: BackupEntry[];
 }
 
-export type Reason = "busy" | "input_held" | "dialog" | "untitled" | "elevated" | "no_changes";
+export type Reason = "busy" | "input_held" | "dialog" | "untitled" | "elevated" | "no_changes" | "countdown";
 
 export interface ProfileStatus {
   id: string;
@@ -104,6 +115,8 @@ export const api = {
   setConfig: (config: Config) => invoke<Config>("set_config", { config }),
   getPresets: () => invoke<Preset[]>("get_presets"),
   listOpenApps: () => invoke<OpenApp[]>("list_open_apps"),
+  pause: (minutes: number) => invoke<void>("pause", { minutes }),
+  resume: () => invoke<void>("resume"),
   listBackups: () => invoke<BackupGroup[]>("list_backups"),
   restoreBackup: (id: string) => invoke<string>("restore_backup", { id }),
   revealBackup: (id: string) => invoke<void>("reveal_backup", { id }),
@@ -113,6 +126,8 @@ export const api = {
   openBackupRoot: () => invoke<void>("open_backup_root"),
 };
 
+export const onConfigChanged = (cb: () => void) => listen("config_changed", () => cb());
+export const onSaved = (cb: (info: SaveInfo) => void) => listen<SaveInfo>("saved", (e) => cb(e.payload));
 export const onSaveVerified = (cb: (check: SaveCheck) => void) => listen<SaveCheck>("save_verified", (e) => cb(e.payload));
 export const onSaveUnverified = (cb: (check: SaveCheck) => void) =>
   listen<SaveCheck>("save_unverified", (e) => cb(e.payload));

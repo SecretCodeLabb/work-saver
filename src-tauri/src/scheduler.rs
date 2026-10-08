@@ -8,10 +8,13 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
+use crate::actions;
 use crate::backup::Backups;
 use crate::config::{Config, Profile};
 use crate::shortcut;
 use crate::state::{ForegroundInfo, ProfileStatus, SaveInfo, Shared, Status};
+use crate::texts::{tr, Text};
+use crate::tray::{self, TrayState};
 use crate::win32::{self, WindowInfo};
 
 const TICK: Duration = Duration::from_secs(1);
@@ -32,6 +35,8 @@ pub enum Reason {
     Elevated,
     /// El título indica que no hay cambios: se omitió el guardado.
     NoChanges,
+    /// Cuenta atrás del aviso previo al guardado.
+    Countdown,
 }
 
 enum Decision {
@@ -49,10 +54,15 @@ pub fn spawn(app: AppHandle, shared: Arc<Shared>, backups: Arc<Backups>) {
             due_since: None,
             reasons: HashMap::new(),
             dirty_seen: HashSet::new(),
+            warned_at: None,
+            notified: HashSet::new(),
         };
         loop {
             thread::sleep(TICK);
             let config = shared.config();
+            if actions::resume_if_expired(&app, &config) {
+                continue;
+            }
             let foreground = win32::foreground_window();
             scheduler.tick(&app, &shared, &config, foreground.as_ref());
         }
@@ -70,6 +80,10 @@ struct Scheduler {
     /// Perfiles cuyo título ya mostró la marca de cambios: a partir de ahí se confía en ella.
     dirty_seen: HashSet<String>,
     self_elevated: bool,
+    /// Momento en que se mostró el aviso previo del guardado pendiente.
+    warned_at: Option<Instant>,
+    /// Problemas ya notificados en el ciclo actual ("perfil:motivo").
+    notified: HashSet<String>,
 }
 
 impl Scheduler {
@@ -78,7 +92,7 @@ impl Scheduler {
         self.timers.retain(|id, _| config.profiles.iter().any(|p| &p.id == id));
         for profile in &config.profiles {
             let timer = self.timers.entry(profile.id.clone()).or_insert(now);
-            if !config.enabled || !profile.enabled {
+            if !config.is_running() || !profile.enabled {
                 // En pausa: reiniciar para no guardar de golpe al reactivar.
                 *timer = now;
                 self.reasons.remove(&profile.id);
@@ -93,9 +107,28 @@ impl Scheduler {
         }
 
         match active {
-            Some((window, profile)) if config.enabled && self.is_due(profile) => {
+            Some((window, profile)) if config.is_running() && self.is_due(profile) => {
                 let due_since = *self.due_since.get_or_insert(now);
-                match self.decide(config, profile, window, due_since.elapsed()) {
+                let mut decision = self.decide(config, profile, window, due_since.elapsed());
+                if matches!(decision, Decision::Save) && config.notifications.warn_before {
+                    let seconds = config.notifications.warn_seconds;
+                    match self.warned_at {
+                        None => {
+                            self.warned_at = Some(now);
+                            actions::notify(
+                                app,
+                                &tr(Text::NotifyWarnTitle, &[("app", &profile.name), ("seconds", &seconds.to_string())]),
+                                &tr(Text::NotifyWarnBody, &[]),
+                            );
+                            decision = Decision::Wait(Reason::Countdown);
+                        }
+                        Some(at) if at.elapsed() < Duration::from_secs(u64::from(seconds)) => {
+                            decision = Decision::Wait(Reason::Countdown);
+                        }
+                        Some(_) => {}
+                    }
+                }
+                match decision {
                     Decision::Save => {
                         if save(window, profile) {
                             let dirty = self.dirty_seen.contains(&profile.id) && profile.is_dirty(&window.title);
@@ -109,6 +142,13 @@ impl Scheduler {
                                 file: None,
                             };
                             shared.runtime().last_save = Some(info.clone());
+                            if config.notifications.on_save {
+                                actions::notify(
+                                    app,
+                                    &tr(Text::NotifySavedTitle, &[("app", &info.app)]),
+                                    &tr(Text::NotifySavedBody, &[("time", &info.time)]),
+                                );
+                            }
                             let _ = app.emit("saved", info);
                         }
                     }
@@ -118,11 +158,18 @@ impl Scheduler {
                     }
                     Decision::Wait(reason) => {
                         self.reasons.insert(profile.id.clone(), reason);
+                        if config.notifications.on_problem {
+                            self.notify_problem(app, profile, reason);
+                        }
                     }
                 }
             }
-            _ => self.due_since = None,
+            _ => {
+                self.due_since = None;
+                self.warned_at = None;
+            }
         }
+        self.update_tray(app, config);
 
         let status = Status {
             enabled: config.enabled,
@@ -181,6 +228,55 @@ impl Scheduler {
         self.timers.insert(profile.id.clone(), Instant::now());
         self.reasons.remove(&profile.id);
         self.due_since = None;
+        self.warned_at = None;
+        let prefix = format!("{}:", profile.id);
+        self.notified.retain(|key| !key.starts_with(&prefix));
+    }
+
+    /// Avisa una sola vez por ciclo de los problemas que requieren al usuario.
+    fn notify_problem(&mut self, app: &AppHandle, profile: &Profile, reason: Reason) {
+        let (title, body) = match reason {
+            Reason::Untitled => (Text::NotifyUntitledTitle, Text::NotifyUntitledBody),
+            Reason::Elevated => (Text::NotifyElevatedTitle, Text::NotifyElevatedBody),
+            _ => return,
+        };
+        if self.notified.insert(format!("{}:{:?}", profile.id, reason)) {
+            actions::notify(app, &tr(title, &[("app", &profile.name)]), &tr(body, &[]));
+        }
+    }
+
+    fn update_tray(&self, app: &AppHandle, config: &Config) {
+        let problem = self
+            .reasons
+            .values()
+            .any(|r| matches!(r, Reason::Untitled | Reason::Elevated));
+        let (state, status) = if !config.enabled {
+            (TrayState::Off, tr(Text::StatusOff, &[]))
+        } else if let Some(until) = config.paused_until {
+            let time = chrono::DateTime::from_timestamp_millis(until)
+                .map(|d| d.with_timezone(&chrono::Local).format("%H:%M").to_string())
+                .unwrap_or_default();
+            (TrayState::Paused, tr(Text::StatusPausedUntil, &[("time", &time)]))
+        } else if problem {
+            (TrayState::Problem, tr(Text::StatusActive, &[]))
+        } else {
+            (TrayState::Active, tr(Text::StatusActive, &[]))
+        };
+
+        let mut tooltip = format!("Don't Crash Now\n{status}");
+        if config.is_running() {
+            let next = config
+                .profiles
+                .iter()
+                .filter(|p| p.enabled)
+                .min_by_key(|p| self.remaining(p));
+            if let Some(profile) = next {
+                let minutes = self.remaining(profile).as_secs().div_ceil(60).to_string();
+                tooltip.push('\n');
+                tooltip.push_str(&tr(Text::StatusNextSave, &[("app", &profile.name), ("minutes", &minutes)]));
+            }
+        }
+        tray::update(app, state, tooltip.chars().take(120).collect());
     }
 
     fn remaining(&self, profile: &Profile) -> Duration {

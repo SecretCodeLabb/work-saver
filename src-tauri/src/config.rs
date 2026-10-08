@@ -18,10 +18,15 @@ pub const DEFAULT_SHORTCUT: &str = "Ctrl+S";
 pub struct Config {
     /// Autoguardado activado.
     pub enabled: bool,
+    /// Pausa temporal hasta este momento (milisegundos desde 1970).
+    pub paused_until: Option<i64>,
     /// Un perfil por programa vigilado.
     pub profiles: Vec<Profile>,
     pub smart: SmartSave,
     pub backups: BackupConfig,
+    pub notifications: Notifications,
+    /// Atajo global que activa o desactiva el autoguardado; vacío = sin atajo.
+    pub toggle_hotkey: String,
 
     // Campos de la v1.0 (lista global de procesos); solo se leen para migrar.
     #[serde(skip_serializing)]
@@ -52,6 +57,35 @@ pub struct Profile {
     /// Carpetas de proyecto donde se vigilan los archivos para respaldarlos.
     pub watch_folders: Vec<String>,
 }
+
+/// Avisos del sistema (notificaciones de Windows).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Notifications {
+    /// Notificar cada guardado.
+    pub on_save: bool,
+    /// Notificar problemas: documento sin nombre, guardado no verificado, cierres inesperados.
+    pub on_problem: bool,
+    /// Avisar unos segundos antes de guardar.
+    pub warn_before: bool,
+    pub warn_seconds: u32,
+    /// Sonido breve al guardar.
+    pub sound: bool,
+}
+
+impl Default for Notifications {
+    fn default() -> Self {
+        Self {
+            on_save: false,
+            on_problem: true,
+            warn_before: false,
+            warn_seconds: 5,
+            sound: false,
+        }
+    }
+}
+
+pub const DEFAULT_TOGGLE_HOTKEY: &str = "Ctrl+Shift+Alt+F9";
 
 /// Copias de seguridad con historial.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -170,6 +204,9 @@ impl Default for Config {
             ],
             smart: SmartSave::default(),
             backups: BackupConfig::default(),
+            notifications: Notifications::default(),
+            toggle_hotkey: DEFAULT_TOGGLE_HOTKEY.into(),
+            paused_until: None,
             processes: Vec::new(),
             interval_minutes: None,
         }
@@ -201,7 +238,18 @@ impl Config {
         self.profiles = profiles;
         self.smart = self.smart.normalized();
         self.backups = self.backups.normalized();
+        self.notifications.warn_seconds = self.notifications.warn_seconds.clamp(1, 60);
+        self.toggle_hotkey = if self.toggle_hotkey.trim().is_empty() {
+            String::new()
+        } else {
+            shortcut::normalize(&self.toggle_hotkey).unwrap_or_else(|| DEFAULT_TOGGLE_HOTKEY.into())
+        };
         self
+    }
+
+    /// Autoguardado activado y sin pausa.
+    pub fn is_running(&self) -> bool {
+        self.enabled && self.paused_until.is_none()
     }
 
     /// Perfil activo para un ejecutable.
