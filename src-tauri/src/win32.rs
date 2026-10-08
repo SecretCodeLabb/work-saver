@@ -4,7 +4,7 @@ use std::mem::size_of;
 use std::path::Path;
 
 use windows::core::PWSTR;
-use windows::Win32::Foundation::{CloseHandle, HWND};
+use windows::Win32::Foundation::{CloseHandle, BOOL, HWND, LPARAM};
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
@@ -13,7 +13,9 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VIRTUAL_KEY,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
+    EnumWindows, GetForegroundWindow, GetWindow, GetWindowLongW, GetWindowTextLengthW,
+    GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible, GWL_EXSTYLE, GW_OWNER,
+    WS_EX_TOOLWINDOW,
 };
 
 /// Información de una ventana de nivel superior.
@@ -38,6 +40,38 @@ pub fn foreground_window() -> Option<WindowInfo> {
 /// Indica si `hwnd` sigue siendo la ventana en primer plano.
 pub fn is_foreground(hwnd: isize) -> bool {
     unsafe { GetForegroundWindow().0 as isize == hwnd }
+}
+
+/// Ventanas principales visibles (las que aparecen en la barra de tareas).
+pub fn list_app_windows() -> Vec<WindowInfo> {
+    unsafe extern "system" fn collect(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let handles = &mut *(lparam.0 as *mut Vec<HWND>);
+        handles.push(hwnd);
+        BOOL(1)
+    }
+
+    let mut handles: Vec<HWND> = Vec::new();
+    unsafe {
+        let _ = EnumWindows(Some(collect), LPARAM(&mut handles as *mut Vec<HWND> as isize));
+    }
+
+    handles
+        .into_iter()
+        .filter(|&hwnd| is_app_window(hwnd))
+        .filter_map(window_info)
+        .filter(|w| !w.title.is_empty())
+        .collect()
+}
+
+fn is_app_window(hwnd: HWND) -> bool {
+    unsafe {
+        if !IsWindowVisible(hwnd).as_bool() {
+            return false;
+        }
+        let has_owner = GetWindow(hwnd, GW_OWNER).map(|o| !o.0.is_null()).unwrap_or(false);
+        let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
+        !has_owner && ex_style & WS_EX_TOOLWINDOW.0 == 0
+    }
 }
 
 fn window_info(hwnd: HWND) -> Option<WindowInfo> {

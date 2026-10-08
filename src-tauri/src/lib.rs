@@ -3,7 +3,9 @@ compile_error!("Don't Crash Now solo es compatible con Windows.");
 
 mod commands;
 mod config;
+mod presets;
 mod scheduler;
+mod shortcut;
 mod state;
 mod tray;
 mod win32;
@@ -28,7 +30,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::set_config,
-            commands::get_last_save,
+            commands::get_presets,
+            commands::list_open_apps,
         ])
         .on_window_event(|window, event| {
             // Cerrar la ventana solo la oculta; la app sigue en la bandeja.

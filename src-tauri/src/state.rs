@@ -24,18 +24,33 @@ pub struct Runtime {
 pub struct SaveInfo {
     /// Hora local "HH:MM:SS".
     pub time: String,
+    /// Nombre del programa.
     pub app: String,
+    pub profile_id: String,
 }
 
 /// Instantánea que se envía a la interfaz en cada ciclo.
 #[derive(Debug, Clone, Serialize)]
 pub struct Status {
     pub enabled: bool,
-    /// Ejecutable de la ventana activa.
-    pub foreground: Option<String>,
-    /// Segundos para el próximo guardado.
-    pub next_save_in: Option<u64>,
+    pub foreground: Option<ForegroundInfo>,
+    /// Perfil del programa en primer plano, si está vigilado.
+    pub active_profile: Option<String>,
+    pub profiles: Vec<ProfileStatus>,
     pub last_save: Option<SaveInfo>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ForegroundInfo {
+    pub exe: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProfileStatus {
+    pub id: String,
+    /// Segundos para el próximo guardado (0 = pendiente).
+    pub next_save_in: u64,
 }
 
 impl Shared {
