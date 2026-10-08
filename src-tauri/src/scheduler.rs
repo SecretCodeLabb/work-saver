@@ -6,9 +6,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::actions;
+use crate::activity::{self, Activity, Kind};
 use crate::backup::Backups;
 use crate::config::{Config, Profile};
 use crate::shortcut;
@@ -149,10 +150,12 @@ impl Scheduler {
                                     &tr(Text::NotifySavedBody, &[("time", &info.time)]),
                                 );
                             }
+                            activity::record(app, Kind::Save, &info.app, &window.title);
                             let _ = app.emit("saved", info);
                         }
                     }
                     Decision::Skip(reason) => {
+                        activity::record(app, Kind::Skip, &profile.name, "");
                         self.reset(profile);
                         self.reasons.insert(profile.id.clone(), reason);
                     }
@@ -167,6 +170,11 @@ impl Scheduler {
             _ => {
                 self.due_since = None;
                 self.warned_at = None;
+            }
+        }
+        if config.is_running() && active.is_some() {
+            if let Some(activity) = app.try_state::<Arc<Activity>>() {
+                activity.add_protected_seconds(TICK.as_secs());
             }
         }
         let crashed = shared.runtime().crash_alert.is_some();
@@ -243,7 +251,9 @@ impl Scheduler {
             _ => return,
         };
         if self.notified.insert(format!("{}:{:?}", profile.id, reason)) {
-            actions::notify(app, &tr(title, &[("app", &profile.name)]), &tr(body, &[]));
+            let title = tr(title, &[("app", &profile.name)]);
+            activity::record(app, Kind::Problem, &profile.name, &title);
+            actions::notify(app, &title, &tr(body, &[]));
         }
     }
 

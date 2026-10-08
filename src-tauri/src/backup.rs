@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 
 use crate::actions;
+use crate::activity::{self, Kind};
 use crate::config::{BackupConfig, Config, Profile};
 use crate::texts::{tr, Text};
 use crate::state::{lock, Shared};
@@ -272,6 +273,7 @@ impl Backups {
             }
             // Solo es un problema si había cambios: sin cambios muchos programas no escriben nada.
             if dirty {
+                activity::record(&self.app, Kind::Unverified, &app, "");
                 if self.shared.config().notifications.on_problem {
                     actions::notify(
                         &self.app,
@@ -320,6 +322,7 @@ impl Backups {
             prune(&mut index, &config.backups);
             self.save_index(&index);
         }
+        activity::record(&self.app, Kind::Backup, &entry.app, &entry.original.to_string_lossy());
         let _ = self.app.emit("backup_created", entry);
         Ok(())
     }

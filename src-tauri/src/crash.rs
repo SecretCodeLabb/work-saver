@@ -13,6 +13,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 use crate::actions;
+use crate::activity::{self, Kind};
 use crate::backup::{BackupEntry, Backups};
 use crate::state::{SaveInfo, Shared};
 use crate::texts::{tr, Text};
@@ -104,6 +105,7 @@ pub fn spawn(app: AppHandle, shared: Arc<Shared>, backups: Arc<Backups>) {
                     };
                     actions::notify(&app, &tr(Text::NotifyCrashTitle, &[("app", &alert.app)]), &detail);
                 }
+                activity::record(&app, Kind::Crash, &alert.app, &alert.code);
                 shared.runtime().crash_alert = Some(alert.clone());
                 let _ = app.emit("crash_detected", alert);
             }

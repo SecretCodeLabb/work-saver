@@ -4,6 +4,7 @@ const es = {
   "nav.home": "Inicio",
   "nav.programs": "Programas",
   "nav.backups": "Respaldos",
+  "nav.activity": "Actividad",
   "nav.settings": "Ajustes",
 
   "status.on": "Activo",
@@ -47,6 +48,7 @@ const es = {
   "crash.recovery": "Al volver a abrirlo, revisa también su carpeta de recuperación automática.",
   "crash.viewBackups": "Ver respaldos",
   "crash.dismiss": "Descartar",
+  "home.today": "Hoy",
   "home.tip.title": "Consejo",
   "home.tip.body": "Guarda tu archivo manualmente una vez antes de activar el autoguardado; si el documento no tiene nombre, el programa abrirá «Guardar como».",
 
@@ -111,6 +113,28 @@ const es = {
   "backups.deleteAll.body": "Se borrarán las {count} copias de {name}. El archivo original no se toca.",
   "backups.created": "Respaldo creado: {name}",
   "backups.unverified": "{app}: no se detectó el archivo guardado. Revisa el programa.",
+
+  "activity.title": "Actividad",
+  "activity.subtitle": "Cuánto trabajo ha protegido Don't Crash Now.",
+  "activity.openLog": "Abrir registro",
+  "activity.today": "Hoy",
+  "activity.week": "Últimos 7 días",
+  "activity.total": "Total",
+  "activity.saves": "Guardados",
+  "activity.backups": "Respaldos",
+  "activity.protected": "Tiempo protegido",
+  "activity.crashes": "Cierres inesperados",
+  "activity.log": "Registro",
+  "activity.empty": "Todavía no hay actividad.",
+  "activity.clear": "Borrar",
+  "activity.clear.title": "¿Borrar la actividad?",
+  "activity.clear.body": "Se borrarán las estadísticas y el registro. Los respaldos no se tocan.",
+  "activity.kind.save": "Guardado",
+  "activity.kind.skip": "Sin cambios",
+  "activity.kind.backup": "Respaldo",
+  "activity.kind.unverified": "Guardado no verificado",
+  "activity.kind.problem": "Aviso",
+  "activity.kind.crash": "Cierre inesperado",
 
   "add.title": "Añadir programa",
   "add.tab.open": "Abiertos ahora",
@@ -235,4 +259,13 @@ export function formatBytes(bytes: number): string {
 
 export function formatDateTime(ms: number): string {
   return new Date(ms).toLocaleString(DATE_LOCALE, { dateStyle: "medium", timeStyle: "short" });
+}
+
+/** 4500 → "1 h 15 min", 90 → "1 min", 20 → "20 s". */
+export function formatDuration(totalSeconds: number): string {
+  const s = Math.floor(totalSeconds);
+  if (s < 60) return `${s} s`;
+  const hours = Math.floor(s / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  return hours ? `${hours} h ${minutes} min` : `${minutes} min`;
 }

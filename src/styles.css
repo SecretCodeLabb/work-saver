@@ -202,6 +202,12 @@ svg {
   gap: 1rem;
 }
 
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
 .grid-3 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -910,7 +916,8 @@ details[open] > summary .chevron {
   }
 
   .grid-2,
-  .grid-3 {
+  .grid-3,
+  .grid-4 {
     grid-template-columns: 1fr;
   }
 }

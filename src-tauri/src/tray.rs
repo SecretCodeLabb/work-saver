@@ -87,7 +87,12 @@ pub fn create(app: &AppHandle, config: &Config) -> tauri::Result<()> {
             "pause30" => actions::pause(app, 30),
             "pause60" => actions::pause(app, 60),
             "resume" => actions::resume(app),
-            "quit" => app.exit(0),
+            "quit" => {
+                if let Some(activity) = app.try_state::<std::sync::Arc<crate::activity::Activity>>() {
+                    activity.flush();
+                }
+                app.exit(0);
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {

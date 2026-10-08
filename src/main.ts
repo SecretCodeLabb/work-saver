@@ -5,13 +5,14 @@ import { t } from "./i18n";
 import { store } from "./store";
 import { h, toast } from "./ui/dom";
 import { icon } from "./ui/icons";
+import { activityView } from "./views/activity";
 import { backupsView } from "./views/backups";
 import { homeView } from "./views/home";
 import { programsView } from "./views/programs";
 import { settingsView } from "./views/settings";
 import type { View } from "./views/view";
 
-const views: View[] = [homeView, programsView, backupsView, settingsView];
+const views: View[] = [homeView, programsView, backupsView, activityView, settingsView];
 
 const nav = document.getElementById("nav")!;
 const viewRoot = document.getElementById("view")!;

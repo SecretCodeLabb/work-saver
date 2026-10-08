@@ -122,11 +122,38 @@ export interface Status {
   crash_alert: CrashAlert | null;
 }
 
+export type ActivityKind = "save" | "skip" | "backup" | "unverified" | "problem" | "crash";
+
+export interface DayStats {
+  saves: number;
+  skipped: number;
+  backups: number;
+  crashes: number;
+  protected_seconds: number;
+}
+
+export interface ActivityEvent {
+  time_ms: number;
+  kind: ActivityKind;
+  app: string;
+  detail: string;
+}
+
+export interface ActivitySummary {
+  today: DayStats;
+  week: DayStats;
+  total: DayStats;
+  events: ActivityEvent[];
+}
+
 export const api = {
   getConfig: () => invoke<Config>("get_config"),
   setConfig: (config: Config) => invoke<Config>("set_config", { config }),
   getPresets: () => invoke<Preset[]>("get_presets"),
   listOpenApps: () => invoke<OpenApp[]>("list_open_apps"),
+  getActivity: () => invoke<ActivitySummary>("get_activity"),
+  clearActivity: () => invoke<void>("clear_activity"),
+  openLogFolder: () => invoke<void>("open_log_folder"),
   dismissCrashAlert: () => invoke<void>("dismiss_crash_alert"),
   pause: (minutes: number) => invoke<void>("pause", { minutes }),
   resume: () => invoke<void>("resume"),

@@ -9,6 +9,7 @@ use tauri::{AppHandle, State};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::actions;
+use crate::activity::{Activity, Summary};
 use crate::backup::{BackupGroup, Backups};
 use crate::config::Config;
 use crate::presets::{Preset, PRESETS};
@@ -125,4 +126,23 @@ pub fn open_backup_root(app: AppHandle, shared: SharedState, backups: BackupStat
 #[tauri::command]
 pub fn dismiss_crash_alert(shared: SharedState) {
     shared.runtime().crash_alert = None;
+}
+
+#[tauri::command]
+pub fn get_activity(activity: State<Arc<Activity>>) -> Summary {
+    activity.summary()
+}
+
+#[tauri::command]
+pub fn clear_activity(activity: State<Arc<Activity>>) {
+    activity.clear();
+}
+
+#[tauri::command]
+pub fn open_log_folder(app: AppHandle, activity: State<Arc<Activity>>) -> Result<(), String> {
+    let dir = activity.log_dir();
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    app.opener()
+        .open_path(dir.to_string_lossy(), None::<&str>)
+        .map_err(|e| e.to_string())
 }

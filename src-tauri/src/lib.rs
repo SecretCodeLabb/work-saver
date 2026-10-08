@@ -2,6 +2,7 @@
 compile_error!("Don't Crash Now solo es compatible con Windows.");
 
 mod actions;
+mod activity;
 mod backup;
 mod commands;
 mod config;
@@ -52,6 +53,7 @@ pub fn run() {
             app.manage(shared.clone());
 
             let data_dir = app.path().app_data_dir()?;
+            app.manage(activity::Activity::start(data_dir.clone(), app.path().app_log_dir()?));
             let backups = Backups::start(app.handle().clone(), shared.clone(), data_dir);
             app.manage(backups.clone());
 
@@ -75,6 +77,9 @@ pub fn run() {
             commands::get_presets,
             commands::list_open_apps,
             commands::dismiss_crash_alert,
+            commands::get_activity,
+            commands::clear_activity,
+            commands::open_log_folder,
             commands::pause,
             commands::resume,
             commands::list_backups,

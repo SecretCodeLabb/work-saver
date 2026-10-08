@@ -1,8 +1,11 @@
+import { listen } from "@tauri-apps/api/event";
+
 import { formatCountdown, formatDateTime, t } from "../i18n";
 import { store } from "../store";
 import { api } from "../api";
 import { button, card, h, initials, switchEl, viewHeader } from "../ui/dom";
 import { icon } from "../ui/icons";
+import { statTiles } from "./activity";
 import { openAddProgram } from "./add-program";
 import type { View } from "./view";
 
@@ -40,6 +43,8 @@ export const homeView: View = {
     const foregroundIcon = h("div", { class: "app-icon" });
     const programs = h("div", { class: "list" });
     const crashBanner = h("div");
+    const today = h("div");
+    const loadToday = () => api.getActivity().then((summary) => today.replaceChildren(statTiles(summary.today)));
     let crashKey = "";
 
     root.append(
@@ -65,6 +70,7 @@ export const homeView: View = {
           ),
         ),
         card(t("home.programs"), programs),
+        card(t("home.today"), today),
         h(
           "section",
           { class: "banner" },
@@ -239,11 +245,16 @@ export const homeView: View = {
     }
 
     renderStatus();
+    loadToday();
     const offStatus = store.onStatus(renderStatus);
     const offConfig = store.onConfig(renderStatus);
+    const timer = setInterval(loadToday, 30_000);
+    const unlisten = listen("activity", loadToday);
     return () => {
       offStatus();
       offConfig();
+      clearInterval(timer);
+      unlisten.then((fn) => fn());
     };
   },
 };
