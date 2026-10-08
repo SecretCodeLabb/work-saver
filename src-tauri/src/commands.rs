@@ -14,12 +14,12 @@ pub fn get_config(shared: SharedState) -> Config {
     shared.config()
 }
 
-/// Reemplaza la configuración y devuelve la versión normalizada.
+/// Reemplaza la configuración, la guarda y devuelve la versión normalizada.
 #[tauri::command]
-pub fn set_config(config: Config, shared: SharedState) -> Config {
+pub fn set_config(config: Config, shared: SharedState) -> Result<Config, String> {
     let config = config.normalized();
-    shared.set_config(config.clone());
-    config
+    shared.set_config(config.clone()).map_err(|e| e.to_string())?;
+    Ok(config)
 }
 
 #[tauri::command]

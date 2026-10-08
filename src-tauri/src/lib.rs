@@ -10,7 +10,6 @@ mod win32;
 
 use std::sync::Arc;
 
-use config::Config;
 use tauri::Manager;
 use state::Shared;
 
@@ -18,7 +17,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let shared = Arc::new(Shared::new(Config::default()));
+            let config_path = app.path().app_config_dir()?.join("config.json");
+            let shared = Arc::new(Shared::load(config_path));
             app.manage(shared.clone());
 
             tray::create(app.handle())?;

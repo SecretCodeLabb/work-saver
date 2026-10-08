@@ -1,5 +1,9 @@
 //! Configuración del usuario.
 
+use std::fs;
+use std::io;
+use std::path::Path;
+
 use serde::{Deserialize, Serialize};
 
 pub const MIN_INTERVAL: u32 = 1;
@@ -49,4 +53,30 @@ pub fn normalize_exe(exe: &str) -> String {
     } else {
         format!("{exe}.exe")
     }
+}
+
+/// Lee la configuración. Si el archivo está dañado lo renombra a `.bak` y usa la predeterminada.
+pub fn load(path: &Path) -> Config {
+    let Ok(text) = fs::read_to_string(path) else {
+        return Config::default();
+    };
+    match serde_json::from_str::<Config>(&text) {
+        Ok(config) => config.normalized(),
+        Err(error) => {
+            eprintln!("config.json inválido ({error}); se usará la configuración predeterminada");
+            let _ = fs::rename(path, path.with_extension("json.bak"));
+            Config::default()
+        }
+    }
+}
+
+/// Escribe la configuración de forma atómica (archivo temporal + renombrar).
+pub fn save(path: &Path, config: &Config) -> io::Result<()> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    let tmp = path.with_extension("json.tmp");
+    let json = serde_json::to_string_pretty(config).map_err(io::Error::other)?;
+    fs::write(&tmp, json)?;
+    fs::rename(&tmp, path)
 }

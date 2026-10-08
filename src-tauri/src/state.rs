@@ -1,13 +1,16 @@
 //! Estado compartido entre la interfaz, la bandeja y el hilo de autoguardado.
 
+use std::io;
+use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 
 use serde::Serialize;
 
-use crate::config::Config;
+use crate::config::{self, Config};
 
 pub struct Shared {
     config: Mutex<Config>,
+    config_path: PathBuf,
     runtime: Mutex<Runtime>,
 }
 
@@ -36,9 +39,11 @@ pub struct Status {
 }
 
 impl Shared {
-    pub fn new(config: Config) -> Self {
+    /// Carga la configuración guardada en `config_path`.
+    pub fn load(config_path: PathBuf) -> Self {
         Self {
-            config: Mutex::new(config),
+            config: Mutex::new(config::load(&config_path)),
+            config_path,
             runtime: Mutex::new(Runtime::default()),
         }
     }
@@ -47,8 +52,13 @@ impl Shared {
         lock(&self.config).clone()
     }
 
-    pub fn set_config(&self, config: Config) {
-        *lock(&self.config) = config;
+    /// Reemplaza la configuración y la guarda en disco.
+    /// La configuración en memoria se actualiza aunque falle la escritura.
+    pub fn set_config(&self, config: Config) -> io::Result<()> {
+        let mut current = lock(&self.config);
+        let result = config::save(&self.config_path, &config);
+        *current = config;
+        result
     }
 
     pub fn runtime(&self) -> MutexGuard<'_, Runtime> {
