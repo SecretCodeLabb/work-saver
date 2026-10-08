@@ -1,101 +1,116 @@
-use std::ffi::OsString;
+//! Acceso a la API Win32: ventana activa, nombres de proceso y envío de teclas.
+
 use std::mem::size_of;
-use std::os::windows::ffi::OsStringExt;
-use windows::Win32::Foundation::{CloseHandle, HWND, MAX_PATH};
-use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
-use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
-use windows::Win32::UI::Input::KeyboardAndMouse::{
-    SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_CONTROL,
+use std::path::Path;
+
+use windows::core::PWSTR;
+use windows::Win32::Foundation::{CloseHandle, HWND};
+use windows::Win32::System::Threading::{
+    OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
-use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
+    VIRTUAL_KEY,
+};
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
+};
 
-/// Obtiene el nombre del ejecutable de la ventana activa (foreground window).
-/// Retorna Option<String> con el nombre en minúsculas (ej. "blender.exe").
-pub fn get_active_process_name() -> Option<String> {
+/// Información de una ventana de nivel superior.
+#[derive(Debug, Clone)]
+pub struct WindowInfo {
+    pub hwnd: isize,
+    pub pid: u32,
+    /// Nombre del ejecutable en minúsculas (ej. "blender.exe").
+    pub exe: String,
+    pub title: String,
+}
+
+/// Devuelve la ventana en primer plano, si existe y se puede consultar su proceso.
+pub fn foreground_window() -> Option<WindowInfo> {
+    let hwnd = unsafe { GetForegroundWindow() };
+    if hwnd.0.is_null() {
+        return None;
+    }
+    window_info(hwnd)
+}
+
+/// Indica si `hwnd` sigue siendo la ventana en primer plano.
+pub fn is_foreground(hwnd: isize) -> bool {
+    unsafe { GetForegroundWindow().0 as isize == hwnd }
+}
+
+fn window_info(hwnd: HWND) -> Option<WindowInfo> {
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    if pid == 0 {
+        return None;
+    }
+    Some(WindowInfo {
+        hwnd: hwnd.0 as isize,
+        pid,
+        exe: process_exe_name(pid)?,
+        title: window_title(hwnd),
+    })
+}
+
+/// Nombre del ejecutable de un proceso, en minúsculas.
+pub fn process_exe_name(pid: u32) -> Option<String> {
     unsafe {
-        // 1. Obtener la ventana activa
-        let hwnd: HWND = GetForegroundWindow();
-        if hwnd.0.is_null() {
-            return None;
-        }
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
+        // Rutas largas: no limitar a MAX_PATH.
+        let mut buffer = vec![0u16; 4096];
+        let mut len = buffer.len() as u32;
+        let result = QueryFullProcessImageNameW(
+            handle,
+            PROCESS_NAME_WIN32,
+            PWSTR(buffer.as_mut_ptr()),
+            &mut len,
+        );
+        let _ = CloseHandle(handle);
+        result.ok()?;
 
-        // 2. Obtener el PID (Process ID) asociado a la ventana
-        let mut process_id: u32 = 0;
-        GetWindowThreadProcessId(hwnd, Some(&mut process_id));
-        if process_id == 0 {
-            return None;
-        }
-
-        // 3. Abrir el proceso con permisos limitados (suficiente para consultar información)
-        let process_handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id).ok()?;
-
-        // 4. Obtener la ruta del ejecutable
-        let mut buffer = [0u16; MAX_PATH as usize];
-        let length = GetModuleFileNameExW(process_handle, None, &mut buffer);
-        let _ = CloseHandle(process_handle);
-
-        if length == 0 {
-            return None;
-        }
-
-        // 5. Convertir la ruta a String
-        let path_os_string = OsString::from_wide(&buffer[..length as usize]);
-        let path_string = path_os_string.into_string().ok()?;
-
-        // 6. Extraer solo el nombre del ejecutable y convertir a minúsculas
-        let path = std::path::Path::new(&path_string);
-        let file_name = path.file_name()?.to_string_lossy().to_string();
-
-        Some(file_name.to_lowercase())
+        let path = String::from_utf16_lossy(&buffer[..len as usize]);
+        Path::new(&path)
+            .file_name()
+            .map(|name| name.to_string_lossy().to_lowercase())
     }
 }
 
-/// Simula la pulsación de las teclas Ctrl + S usando SendInput de la API de Win32.
-pub fn send_ctrl_s() {
+fn window_title(hwnd: HWND) -> String {
     unsafe {
-        let mut inputs = [INPUT::default(); 4];
+        let len = GetWindowTextLengthW(hwnd);
+        if len <= 0 {
+            return String::new();
+        }
+        let mut buffer = vec![0u16; len as usize + 1];
+        let copied = GetWindowTextW(hwnd, &mut buffer);
+        String::from_utf16_lossy(&buffer[..copied.max(0) as usize])
+    }
+}
 
-        // KeyDown Control
-        inputs[0].r#type = INPUT_KEYBOARD;
-        inputs[0].Anonymous.ki = KEYBDINPUT {
-            wVk: VK_CONTROL,
-            wScan: 0,
-            dwFlags: Default::default(), // 0 para KeyDown
-            time: 0,
-            dwExtraInfo: 0,
-        };
+/// Pulsa las teclas en orden y las suelta en orden inverso (ej. Ctrl↓ S↓ S↑ Ctrl↑).
+/// Devuelve `false` si Windows no aceptó todos los eventos.
+pub fn send_keys(keys: &[u16]) -> bool {
+    let mut inputs: Vec<INPUT> = Vec::with_capacity(keys.len() * 2);
+    inputs.extend(keys.iter().map(|&vk| key_input(vk, false)));
+    inputs.extend(keys.iter().rev().map(|&vk| key_input(vk, true)));
 
-        // KeyDown 'S' (0x53)
-        inputs[1].r#type = INPUT_KEYBOARD;
-        inputs[1].Anonymous.ki = KEYBDINPUT {
-            wVk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY(0x53),
-            wScan: 0,
-            dwFlags: Default::default(),
-            time: 0,
-            dwExtraInfo: 0,
-        };
+    let sent = unsafe { SendInput(&inputs, size_of::<INPUT>() as i32) };
+    sent as usize == inputs.len()
+}
 
-        // KeyUp 'S' (0x53)
-        inputs[2].r#type = INPUT_KEYBOARD;
-        inputs[2].Anonymous.ki = KEYBDINPUT {
-            wVk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY(0x53),
-            wScan: 0,
-            dwFlags: KEYEVENTF_KEYUP,
-            time: 0,
-            dwExtraInfo: 0,
-        };
-
-        // KeyUp Control
-        inputs[3].r#type = INPUT_KEYBOARD;
-        inputs[3].Anonymous.ki = KEYBDINPUT {
-            wVk: VK_CONTROL,
-            wScan: 0,
-            dwFlags: KEYEVENTF_KEYUP,
-            time: 0,
-            dwExtraInfo: 0,
-        };
-
-        let size = size_of::<INPUT>() as i32;
-        let _ = SendInput(&inputs, size);
+fn key_input(vk: u16, key_up: bool) -> INPUT {
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: VIRTUAL_KEY(vk),
+                wScan: 0,
+                dwFlags: if key_up { KEYEVENTF_KEYUP } else { KEYBD_EVENT_FLAGS(0) },
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
     }
 }

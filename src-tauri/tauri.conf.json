@@ -15,8 +15,11 @@
       {
         "label": "main",
         "title": "Don't Crash Now!",
-        "width": 800,
-        "height": 600
+        "width": 960,
+        "height": 680,
+        "minWidth": 760,
+        "minHeight": 540,
+        "center": true
       }
     ],
     "security": {
@@ -25,7 +28,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi"],
+    "targets": [
+      "nsis",
+      "msi"
+    ],
     "publisher": "DXNX.3D",
     "copyright": "© 2026 DXNX.3D — MIT License",
     "category": "Utility",
