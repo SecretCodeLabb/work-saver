@@ -27,6 +27,10 @@ pub struct Config {
     pub notifications: Notifications,
     /// Atajo global que activa o desactiva el autoguardado; vacío = sin atajo.
     pub toggle_hotkey: String,
+    /// Iniciar con Windows.
+    pub autostart: bool,
+    /// Al iniciar con Windows, quedarse en la bandeja sin abrir la ventana.
+    pub start_minimized: bool,
 
     // Campos de la v1.0 (lista global de procesos); solo se leen para migrar.
     #[serde(skip_serializing)]
@@ -207,6 +211,8 @@ impl Default for Config {
             notifications: Notifications::default(),
             toggle_hotkey: DEFAULT_TOGGLE_HOTKEY.into(),
             paused_until: None,
+            autostart: false,
+            start_minimized: true,
             processes: Vec::new(),
             interval_minutes: None,
         }

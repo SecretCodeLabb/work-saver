@@ -20,8 +20,19 @@ use backup::Backups;
 use state::Shared;
 use tauri_plugin_global_shortcut::ShortcutState;
 
+/// Argumento con el que Windows inicia la app al encender el equipo.
+const MINIMIZED_ARG: &str = "--minimized";
+
 pub fn run() {
     tauri::Builder::default()
+        // Debe ir primero: si ya hay una instancia abierta, se muestra su ventana y esta termina.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::show_main_window(app);
+        }))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![MINIMIZED_ARG]),
+        ))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -46,6 +57,13 @@ pub fn run() {
             let config = shared.config();
             tray::create(app.handle(), &config)?;
             actions::register_hotkey(app.handle(), &config.toggle_hotkey);
+            // Mantiene la entrada de inicio apuntando al ejecutable actual.
+            actions::sync_autostart(app.handle(), config.autostart);
+
+            let started_by_windows = std::env::args().any(|arg| arg == MINIMIZED_ARG);
+            if !(started_by_windows && config.start_minimized) {
+                tray::show_main_window(app.handle());
+            }
             scheduler::spawn(app.handle().clone(), shared, backups);
             Ok(())
         })

@@ -46,6 +46,8 @@ export interface Config {
   paused_until: number | null;
   notifications: Notifications;
   toggle_hotkey: string;
+  autostart: boolean;
+  start_minimized: boolean;
   profiles: Profile[];
   smart: SmartSave;
   backups: BackupConfig;

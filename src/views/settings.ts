@@ -34,6 +34,7 @@ export const settingsView: View = {
         smartCard(store.config),
         backupsCard(store.config),
         notificationsCard(store.config),
+        startupCard(store.config),
         hotkeyCard(store.config),
         aboutCard(),
       );
@@ -162,6 +163,24 @@ function notificationsCard(config: Config) {
       t("settings.notifications.sound.hint"),
       switchEl(n.sound, (v) => set((c) => (c.notifications.sound = v))),
     ),
+  );
+}
+
+function startupCard(config: Config) {
+  return card(
+    t("settings.startup"),
+    field(
+      t("settings.startup.autostart"),
+      t("settings.startup.autostart.hint"),
+      switchEl(config.autostart, (v) => set((c) => (c.autostart = v))),
+    ),
+    config.autostart
+      ? field(
+          t("settings.startup.minimized"),
+          t("settings.startup.minimized.hint"),
+          switchEl(config.start_minimized, (v) => set((c) => (c.start_minimized = v))),
+        )
+      : null,
   );
 }
 

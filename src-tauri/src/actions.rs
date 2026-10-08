@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_notification::NotificationExt;
 
@@ -29,6 +30,9 @@ pub fn apply(app: &AppHandle, config: Config) -> Result<Config, String> {
     }
     if previous.toggle_hotkey != config.toggle_hotkey {
         register_hotkey(app, &config.toggle_hotkey);
+    }
+    if previous.autostart != config.autostart {
+        sync_autostart(app, config.autostart);
     }
     tray::sync_menu(app, &config);
     let _ = app.emit("config_changed", ());
@@ -104,5 +108,17 @@ pub fn notify(app: &AppHandle, title: &str, body: &str) {
     }
     if let Err(error) = builder.show() {
         eprintln!("No se pudo mostrar la notificación: {error}");
+    }
+}
+
+/// Registra o quita la entrada de inicio con Windows.
+pub fn sync_autostart(app: &AppHandle, enabled: bool) {
+    let launcher = app.autolaunch();
+    if !enabled && !launcher.is_enabled().unwrap_or(false) {
+        return;
+    }
+    let result = if enabled { launcher.enable() } else { launcher.disable() };
+    if let Err(error) = result {
+        eprintln!("No se pudo cambiar el inicio con Windows: {error}");
     }
 }
