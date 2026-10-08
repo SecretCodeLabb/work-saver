@@ -3,7 +3,7 @@
   "private": true,
   "description": "Autoguardado para software de diseño, arte digital y 3D",
   "license": "MIT",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
