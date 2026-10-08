@@ -145,6 +145,8 @@ export const homeView: View = {
             ? t("status.off")
             : store.paused
               ? t("status.paused")
+            : !ps
+              ? "…"
             : remaining > 0
               ? formatCountdown(remaining)
               : ps?.reason

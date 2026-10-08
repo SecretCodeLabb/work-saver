@@ -127,6 +127,12 @@ npm run tauri build    # instaladores en src-tauri/target/release/bundle/
 cd src-tauri && cargo test   # pruebas del backend
 ```
 
+**Diagnóstico:** con la variable de entorno `DCN_TRACE=1`, el planificador imprime en consola cada ciclo: ventana activa, perfil detectado, tiempo restante, decisión y si se envió el atajo.
+
+```bash
+DCN_TRACE=1 src-tauri/target/debug/dont-crash-now.exe
+```
+
 **Publicar una versión:** actualiza la versión en `package.json`, `src-tauri/Cargo.toml` y `src-tauri/tauri.conf.json`, y sube una etiqueta `vX.Y.Z`. GitHub Actions compila los instaladores y crea un borrador de release.
 
 ## Arquitectura

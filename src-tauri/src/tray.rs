@@ -147,9 +147,14 @@ pub fn update(app: &AppHandle, state: TrayState, tooltip: String) {
     let Some(handles) = app.try_state::<TrayHandles>() else {
         return;
     };
-    let mut last = lock(&handles.last);
-    if last.as_ref().is_some_and(|(s, t)| *s == state && *t == tooltip) {
-        return;
+    {
+        // El candado se suelta antes de tocar la bandeja: esas llamadas esperan al hilo
+        // principal, que también usa `last` desde el menú (`sync_menu`).
+        let mut last = lock(&handles.last);
+        if last.as_ref().is_some_and(|(s, t)| *s == state && *t == tooltip) {
+            return;
+        }
+        *last = Some((state, tooltip.clone()));
     }
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
         let index = match state {
@@ -161,7 +166,6 @@ pub fn update(app: &AppHandle, state: TrayState, tooltip: String) {
         let _ = tray.set_icon(Some(handles.icons[index].clone()));
         let _ = tray.set_tooltip(Some(&tooltip));
     }
-    *last = Some((state, tooltip));
 }
 
 pub fn show_main_window(app: &AppHandle) {

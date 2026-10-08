@@ -20,6 +20,12 @@ use crate::win32::{self, WindowInfo};
 
 const TICK: Duration = Duration::from_secs(1);
 
+/// Diagnóstico: con la variable de entorno `DCN_TRACE` se imprime cada ciclo por consola.
+fn tracing() -> bool {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ENABLED.get_or_init(|| std::env::var_os("DCN_TRACE").is_some())
+}
+
 /// Por qué un guardado pendiente todavía no se hizo.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -101,6 +107,15 @@ impl Scheduler {
         }
 
         let active = foreground.and_then(|w| config.profile_for(&w.exe).map(|p| (w, p)));
+        if tracing() {
+            eprintln!(
+                "[trace] fg={:?} active={:?} running={} due={:?}",
+                foreground.map(|w| (&w.exe, &w.title, w.hwnd)),
+                active.map(|(_, p)| &p.name),
+                config.is_running(),
+                config.profiles.iter().map(|p| (&p.exe, self.remaining(p).as_secs())).collect::<Vec<_>>()
+            );
+        }
         if let Some((window, profile)) = active {
             if profile.is_dirty(&window.title) {
                 self.dirty_seen.insert(profile.id.clone());
@@ -129,9 +144,20 @@ impl Scheduler {
                         Some(_) => {}
                     }
                 }
+                if tracing() {
+                    eprintln!("[trace] decision={}", match &decision {
+                        Decision::Save => "save".to_string(),
+                        Decision::Wait(r) => format!("wait {r:?}"),
+                        Decision::Skip(r) => format!("skip {r:?}"),
+                    });
+                }
                 match decision {
                     Decision::Save => {
-                        if save(window, profile) {
+                        let saved = save(window, profile);
+                        if tracing() {
+                            eprintln!("[trace] save sent={saved}");
+                        }
+                        if saved {
                             let dirty = self.dirty_seen.contains(&profile.id) && profile.is_dirty(&window.title);
                             self.backups.expect_save(profile, dirty);
                             self.reset(profile);
@@ -177,8 +203,8 @@ impl Scheduler {
                 activity.add_protected_seconds(TICK.as_secs());
             }
         }
-        let crashed = shared.runtime().crash_alert.is_some();
-        self.update_tray(app, config, crashed);
+        let (last_save, crash_alert) = shared.runtime_snapshot();
+        self.update_tray(app, config, crash_alert.is_some());
 
         let status = Status {
             enabled: config.enabled,
@@ -197,8 +223,8 @@ impl Scheduler {
                     reason: self.reasons.get(&p.id).copied(),
                 })
                 .collect(),
-            last_save: shared.runtime().last_save.clone(),
-            crash_alert: shared.runtime().crash_alert.clone(),
+            last_save,
+            crash_alert,
         };
         let _ = app.emit("status", status);
     }
