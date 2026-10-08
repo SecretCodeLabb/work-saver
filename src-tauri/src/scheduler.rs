@@ -169,7 +169,8 @@ impl Scheduler {
                 self.warned_at = None;
             }
         }
-        self.update_tray(app, config);
+        let crashed = shared.runtime().crash_alert.is_some();
+        self.update_tray(app, config, crashed);
 
         let status = Status {
             enabled: config.enabled,
@@ -189,6 +190,7 @@ impl Scheduler {
                 })
                 .collect(),
             last_save: shared.runtime().last_save.clone(),
+            crash_alert: shared.runtime().crash_alert.clone(),
         };
         let _ = app.emit("status", status);
     }
@@ -245,8 +247,9 @@ impl Scheduler {
         }
     }
 
-    fn update_tray(&self, app: &AppHandle, config: &Config) {
-        let problem = self
+    fn update_tray(&self, app: &AppHandle, config: &Config, crashed: bool) {
+        let problem = crashed
+            || self
             .reasons
             .values()
             .any(|r| matches!(r, Reason::Untitled | Reason::Elevated));

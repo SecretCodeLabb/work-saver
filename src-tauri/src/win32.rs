@@ -6,9 +6,12 @@ use std::path::Path;
 use windows::core::PWSTR;
 use windows::Win32::Foundation::{CloseHandle, BOOL, HANDLE, HWND, LPARAM};
 use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+use windows::Win32::System::Diagnostics::ToolHelp::{
+    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
+};
 use windows::Win32::System::SystemInformation::GetTickCount;
 use windows::Win32::System::Threading::{
-    GetCurrentProcess, OpenProcess, OpenProcessToken, QueryFullProcessImageNameW,
+    GetCurrentProcess, GetExitCodeProcess, OpenProcess, OpenProcessToken, QueryFullProcessImageNameW,
     PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -222,4 +225,78 @@ unsafe fn token_elevated(process: HANDLE) -> Option<bool> {
     let _ = CloseHandle(token);
     result.ok()?;
     Some(elevation.TokenIsElevated != 0)
+}
+
+/// Procesos en ejecución: (pid, ejecutable en minúsculas).
+pub fn list_processes() -> Vec<(u32, String)> {
+    let mut out = Vec::new();
+    unsafe {
+        let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else {
+            return out;
+        };
+        let mut entry = PROCESSENTRY32W {
+            dwSize: size_of::<PROCESSENTRY32W>() as u32,
+            ..Default::default()
+        };
+        let mut ok = Process32FirstW(snapshot, &mut entry).is_ok();
+        while ok {
+            let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
+            let exe = String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase();
+            out.push((entry.th32ProcessID, exe));
+            ok = Process32NextW(snapshot, &mut entry).is_ok();
+        }
+        let _ = CloseHandle(snapshot);
+    }
+    out
+}
+
+/// Identificador abierto de un proceso; permite leer su código de salida al terminar.
+pub struct ProcessHandle(HANDLE);
+
+// El identificador es un valor del núcleo de Windows válido desde cualquier hilo.
+unsafe impl Send for ProcessHandle {}
+
+impl ProcessHandle {
+    pub fn open(pid: u32) -> Option<Self> {
+        unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok().map(Self) }
+    }
+
+    /// `Some(código)` si el proceso terminó.
+    pub fn exit_code(&self) -> Option<u32> {
+        const STILL_ACTIVE: u32 = 259;
+        let mut code = 0u32;
+        unsafe { GetExitCodeProcess(self.0, &mut code).ok()? };
+        (code != STILL_ACTIVE).then_some(code)
+    }
+}
+
+impl Drop for ProcessHandle {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = CloseHandle(self.0);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_exit_code_of_finished_process() {
+        let mut child = std::process::Command::new("cmd")
+            .args(["/C", "ping -n 2 127.0.0.1 >NUL & exit 7"])
+            .spawn()
+            .unwrap();
+        let handle = ProcessHandle::open(child.id()).expect("abrir proceso");
+        assert_eq!(handle.exit_code(), None, "sigue en ejecución");
+        child.wait().unwrap();
+        assert_eq!(handle.exit_code(), Some(7));
+    }
+
+    #[test]
+    fn lists_current_process() {
+        let me = std::process::id();
+        assert!(list_processes().iter().any(|(pid, _)| *pid == me));
+    }
 }

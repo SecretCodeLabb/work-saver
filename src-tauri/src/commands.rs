@@ -121,3 +121,8 @@ pub fn open_backup_root(app: AppHandle, shared: SharedState, backups: BackupStat
         .open_path(root.to_string_lossy(), None::<&str>)
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn dismiss_crash_alert(shared: SharedState) {
+    shared.runtime().crash_alert = None;
+}

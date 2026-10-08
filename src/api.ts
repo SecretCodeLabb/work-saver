@@ -104,12 +104,22 @@ export interface ProfileStatus {
   reason: Reason | null;
 }
 
+export interface CrashAlert {
+  profile_id: string;
+  app: string;
+  time: string;
+  code: string;
+  last_save: SaveInfo | null;
+  last_backup: BackupEntry | null;
+}
+
 export interface Status {
   enabled: boolean;
   foreground: { exe: string; title: string } | null;
   active_profile: string | null;
   profiles: ProfileStatus[];
   last_save: SaveInfo | null;
+  crash_alert: CrashAlert | null;
 }
 
 export const api = {
@@ -117,6 +127,7 @@ export const api = {
   setConfig: (config: Config) => invoke<Config>("set_config", { config }),
   getPresets: () => invoke<Preset[]>("get_presets"),
   listOpenApps: () => invoke<OpenApp[]>("list_open_apps"),
+  dismissCrashAlert: () => invoke<void>("dismiss_crash_alert"),
   pause: (minutes: number) => invoke<void>("pause", { minutes }),
   resume: () => invoke<void>("resume"),
   listBackups: () => invoke<BackupGroup[]>("list_backups"),

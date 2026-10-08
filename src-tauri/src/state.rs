@@ -7,6 +7,7 @@ use std::sync::{Mutex, MutexGuard};
 use serde::Serialize;
 
 use crate::config::{self, Config};
+use crate::crash::CrashAlert;
 use crate::scheduler::Reason;
 
 pub struct Shared {
@@ -19,6 +20,8 @@ pub struct Shared {
 #[derive(Default)]
 pub struct Runtime {
     pub last_save: Option<SaveInfo>,
+    /// Último cierre inesperado, hasta que el usuario lo descarte.
+    pub crash_alert: Option<CrashAlert>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -43,6 +46,7 @@ pub struct Status {
     pub active_profile: Option<String>,
     pub profiles: Vec<ProfileStatus>,
     pub last_save: Option<SaveInfo>,
+    pub crash_alert: Option<CrashAlert>,
 }
 
 #[derive(Debug, Clone, Serialize)]

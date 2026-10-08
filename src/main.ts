@@ -46,6 +46,16 @@ export function navigate(id: string) {
   viewRoot.scrollTop = 0;
   cleanup = view.mount(viewRoot);
   renderNav();
+  renderCrashBadge();
+}
+
+/** Punto rojo en «Inicio» mientras haya un cierre inesperado sin revisar. */
+function renderCrashBadge() {
+  const homeItem = nav.querySelector(".nav-item");
+  const hasAlert = !!store.status?.crash_alert;
+  const badge = homeItem?.querySelector(".badge");
+  if (hasAlert && homeItem && !badge) homeItem.append(h("span", { class: "badge" }, "!"));
+  if (!hasAlert) badge?.remove();
 }
 
 function renderBrandStatus() {
@@ -75,6 +85,7 @@ function chime() {
 async function main() {
   await store.init();
   store.onConfig(renderBrandStatus);
+  store.onStatus(renderCrashBadge);
   renderBrandStatus();
   navigate("home");
   document.addEventListener("navigate", (e) => navigate((e as CustomEvent<string>).detail));

@@ -1,4 +1,4 @@
-import { formatCountdown, t } from "../i18n";
+import { formatCountdown, formatDateTime, t } from "../i18n";
 import { store } from "../store";
 import { api } from "../api";
 import { button, card, h, initials, switchEl, viewHeader } from "../ui/dom";
@@ -39,12 +39,15 @@ export const homeView: View = {
     const foregroundTag = h("span", { class: "pill" });
     const foregroundIcon = h("div", { class: "app-icon" });
     const programs = h("div", { class: "list" });
+    const crashBanner = h("div");
+    let crashKey = "";
 
     root.append(
       h(
         "div",
         { class: "view-inner" },
         viewHeader(t("home.title"), t("home.subtitle")),
+        crashBanner,
         hero,
         h(
           "div",
@@ -167,7 +170,45 @@ export const homeView: View = {
       );
     }
 
+    function renderCrash() {
+      const alert = store.status?.crash_alert ?? null;
+      const key = alert ? `${alert.profile_id}${alert.time}${alert.code}` : "";
+      if (key === crashKey) return;
+      crashKey = key;
+      if (!alert) return crashBanner.replaceChildren();
+      const lines = [
+        t("crash.code", { code: alert.code }),
+        alert.last_save ? t("crash.lastSave", { time: alert.last_save.time }) : t("crash.noSave"),
+        alert.last_backup ? t("crash.backup", { date: formatDateTime(alert.last_backup.created_ms) }) : null,
+        t("crash.recovery"),
+      ];
+      crashBanner.replaceChildren(
+        h(
+          "section",
+          { class: "banner danger" },
+          icon("alert"),
+          h(
+            "div",
+            { class: "list-item-main" },
+            h("strong", null, t("crash.title", { app: alert.app, time: alert.time })),
+            h("p", null, lines.filter(Boolean).join(" ")),
+            h(
+              "div",
+              { class: "hero-actions" },
+              button(t("crash.viewBackups"), () => document.dispatchEvent(new CustomEvent("navigate", { detail: "backups" })), {
+                small: true,
+                variant: "primary",
+                icon: "archive",
+              }),
+              button(t("crash.dismiss"), () => api.dismissCrashAlert(), { small: true, variant: "ghost" }),
+            ),
+          ),
+        ),
+      );
+    }
+
     function renderStatus() {
+      renderCrash();
       renderHero();
       renderPrograms();
 

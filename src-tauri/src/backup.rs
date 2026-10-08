@@ -359,6 +359,15 @@ impl Backups {
         groups
     }
 
+    /// Respaldo más reciente de un programa.
+    pub fn latest_for(&self, app: &str) -> Option<BackupEntry> {
+        lock(&self.index)
+            .iter()
+            .filter(|e| e.app == app && e.path.is_file())
+            .max_by_key(|e| e.created_ms)
+            .cloned()
+    }
+
     pub fn find(&self, id: &str) -> Option<BackupEntry> {
         lock(&self.index).iter().find(|e| e.id == id).cloned()
     }

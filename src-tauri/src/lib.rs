@@ -5,6 +5,7 @@ mod actions;
 mod backup;
 mod commands;
 mod config;
+mod crash;
 mod presets;
 mod scheduler;
 mod shortcut;
@@ -64,6 +65,7 @@ pub fn run() {
             if !(started_by_windows && config.start_minimized) {
                 tray::show_main_window(app.handle());
             }
+            crash::spawn(app.handle().clone(), shared.clone(), backups.clone());
             scheduler::spawn(app.handle().clone(), shared, backups);
             Ok(())
         })
@@ -72,6 +74,7 @@ pub fn run() {
             commands::set_config,
             commands::get_presets,
             commands::list_open_apps,
+            commands::dismiss_crash_alert,
             commands::pause,
             commands::resume,
             commands::list_backups,
